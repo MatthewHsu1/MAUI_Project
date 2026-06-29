@@ -22,6 +22,7 @@ public class UserTests
     {
         var user = new User(Guid.NewGuid(), "Old Name", "a@b.com");
 
-        Assert.Throws<ArgumentException>(() => user.Rename(blank));
+        // blank! — deliberately passing null/blank to verify the guard rejects it
+        Assert.Throws<ArgumentException>(() => user.Rename(blank!));
     }
 }
