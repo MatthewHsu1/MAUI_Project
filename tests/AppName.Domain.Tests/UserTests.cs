@@ -17,7 +17,8 @@ public class UserTests
     [Theory]
     [InlineData("")]
     [InlineData("   ")]
-    public void Rename_WithBlankName_Throws(string blank)
+    [InlineData(null)]
+    public void Rename_WithBlankName_Throws(string? blank)
     {
         var user = new User(Guid.NewGuid(), "Old Name", "a@b.com");
 
