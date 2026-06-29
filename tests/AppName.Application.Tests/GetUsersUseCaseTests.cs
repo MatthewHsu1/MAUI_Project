@@ -31,4 +31,21 @@ public class GetUsersUseCaseTests
         Assert.Equal("Ada", dto.Name);
         Assert.Equal("ada@x.com", dto.Email);
     }
+
+    [Fact]
+    public async Task AddUserUseCase_AddsUserAndReturnsMappedDto()
+    {
+        var repo = new FakeUserRepository();
+        var sut = new AddUserUseCase(repo);
+
+        var dto = await sut.ExecuteAsync("Bob", "bob@x.com");
+
+        Assert.Equal("Bob", dto.Name);
+        Assert.Equal("bob@x.com", dto.Email);
+        Assert.NotEqual(Guid.Empty, dto.Id);
+
+        var all = await repo.GetAllAsync();
+        var saved = Assert.Single(all);
+        Assert.Equal(dto.Id, saved.Id);
+    }
 }
