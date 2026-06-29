@@ -5,5 +5,9 @@
     <LangVersion>latest</LangVersion>
     <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <!-- Disable SourceLink/SCM git queries: this scaffold does not need them,
+         and the build environment has an unreadable .gitmodules that the SDK's
+         git task otherwise fails on ("Access to the path '.gitmodules' is denied"). -->
+    <EnableSourceControlManagerQueries>false</EnableSourceControlManagerQueries>
   </PropertyGroup>
 </Project>
