@@ -19,6 +19,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AppName.Infrastructure", "s
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AppName.Infrastructure.Tests", "tests\AppName.Infrastructure.Tests\AppName.Infrastructure.Tests.csproj", "{0F95507E-D2E4-48DD-AB43-70A0E26195E9}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AppName.Maui", "src\AppName.Maui\AppName.Maui.csproj", "{89E211BB-FCAF-4A7D-8252-314AE63C4930}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -101,6 +103,18 @@ Global
 		{0F95507E-D2E4-48DD-AB43-70A0E26195E9}.Release|x64.Build.0 = Release|Any CPU
 		{0F95507E-D2E4-48DD-AB43-70A0E26195E9}.Release|x86.ActiveCfg = Release|Any CPU
 		{0F95507E-D2E4-48DD-AB43-70A0E26195E9}.Release|x86.Build.0 = Release|Any CPU
+		{89E211BB-FCAF-4A7D-8252-314AE63C4930}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{89E211BB-FCAF-4A7D-8252-314AE63C4930}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{89E211BB-FCAF-4A7D-8252-314AE63C4930}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{89E211BB-FCAF-4A7D-8252-314AE63C4930}.Debug|x64.Build.0 = Debug|Any CPU
+		{89E211BB-FCAF-4A7D-8252-314AE63C4930}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{89E211BB-FCAF-4A7D-8252-314AE63C4930}.Debug|x86.Build.0 = Debug|Any CPU
+		{89E211BB-FCAF-4A7D-8252-314AE63C4930}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{89E211BB-FCAF-4A7D-8252-314AE63C4930}.Release|Any CPU.Build.0 = Release|Any CPU
+		{89E211BB-FCAF-4A7D-8252-314AE63C4930}.Release|x64.ActiveCfg = Release|Any CPU
+		{89E211BB-FCAF-4A7D-8252-314AE63C4930}.Release|x64.Build.0 = Release|Any CPU
+		{89E211BB-FCAF-4A7D-8252-314AE63C4930}.Release|x86.ActiveCfg = Release|Any CPU
+		{89E211BB-FCAF-4A7D-8252-314AE63C4930}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -112,5 +126,6 @@ Global
 		{7F395C90-4E7B-4827-BD62-762E4AA60AE4} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 		{B2CEEB9C-E4D3-4578-ABF3-261A249E0611} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{0F95507E-D2E4-48DD-AB43-70A0E26195E9} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
+		{89E211BB-FCAF-4A7D-8252-314AE63C4930} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 	EndGlobalSection
 EndGlobal
