@@ -1,0 +1,6 @@
+<Project>
+  <ItemGroup>
+    <!-- Versions added by later tasks. Example shape: -->
+    <!-- <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="..." /> -->
+  </ItemGroup>
+</Project>
