@@ -1,0 +1,16 @@
+# .NET
+bin/
+obj/
+*.user
+.vs/
+
+# MAUI / mobile
+*.binlog
+
+# Node / Vite
+node_modules/
+dist/
+src/AppName.Maui/Resources/Raw/web/
+
+# OS
+.DS_Store
