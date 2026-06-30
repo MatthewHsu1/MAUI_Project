@@ -6,15 +6,19 @@ namespace AppName.Infrastructure.Persistence;
 
 public sealed class UserRepository : IUserRepository
 {
-    private readonly AppDbContext _db;
-    public UserRepository(AppDbContext db) => _db = db;
+    private readonly IDbContextFactory<AppDbContext> _factory;
+    public UserRepository(IDbContextFactory<AppDbContext> factory) => _factory = factory;
 
     public async Task AddAsync(User user, CancellationToken ct = default)
     {
-        _db.Users.Add(user);
-        await _db.SaveChangesAsync(ct);
+        await using var db = _factory.CreateDbContext();
+        db.Users.Add(user);
+        await db.SaveChangesAsync(ct);
     }
 
     public async Task<IReadOnlyList<User>> GetAllAsync(CancellationToken ct = default)
-        => await _db.Users.AsNoTracking().ToListAsync(ct);
+    {
+        await using var db = _factory.CreateDbContext();
+        return await db.Users.AsNoTracking().ToListAsync(ct);
+    }
 }
