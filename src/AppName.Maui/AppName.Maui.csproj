@@ -81,7 +81,10 @@
     <WebAppDir>$(MSBuildProjectDirectory)/../web</WebAppDir>
   </PropertyGroup>
 
-  <Target Name="BuildReactApp" BeforeTargets="BeforeBuild;_ValidateLinkMode" Condition="'$(SkipReactBuild)' != 'true'">
+  <!-- Runs the Vite build before the MAUI build. Hooks BeforeBuild (fires after SDK
+       validation on a configured host). In a multi-targeting build this runs once per
+       inner TFM build; the Vite output is idempotent so that is wasteful but harmless. -->
+  <Target Name="BuildReactApp" BeforeTargets="BeforeBuild" Condition="'$(SkipReactBuild)' != 'true'">
     <Message Importance="high" Text="Building React app in $(WebAppDir)" />
     <Exec Command="npm install" WorkingDirectory="$(WebAppDir)" />
     <Exec Command="npm run build" WorkingDirectory="$(WebAppDir)" />
