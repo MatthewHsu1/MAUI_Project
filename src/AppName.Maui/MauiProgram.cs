@@ -20,6 +20,7 @@ public static class MauiProgram
         builder.Services.AddApplication();
         builder.Services.AddInfrastructure(dbPath);
 
+        builder.Services.AddTransient<AppName.Maui.Bridge.UsersBridge>();
         builder.Services.AddTransient<MainPage>();
 
 #if DEBUG
