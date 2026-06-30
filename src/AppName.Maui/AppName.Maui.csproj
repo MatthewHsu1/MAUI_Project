@@ -75,4 +75,16 @@
 	  <ProjectReference Include="..\AppName.Infrastructure\AppName.Infrastructure.csproj" />
 	</ItemGroup>
 
+  <PropertyGroup>
+    <!-- Set to true to skip the React build (e.g. when using the Vite dev server). -->
+    <SkipReactBuild Condition="'$(SkipReactBuild)' == ''">false</SkipReactBuild>
+    <WebAppDir>$(MSBuildProjectDirectory)/../web</WebAppDir>
+  </PropertyGroup>
+
+  <Target Name="BuildReactApp" BeforeTargets="BeforeBuild;_ValidateLinkMode" Condition="'$(SkipReactBuild)' != 'true'">
+    <Message Importance="high" Text="Building React app in $(WebAppDir)" />
+    <Exec Command="npm install" WorkingDirectory="$(WebAppDir)" />
+    <Exec Command="npm run build" WorkingDirectory="$(WebAppDir)" />
+  </Target>
+
 </Project>
