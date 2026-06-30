@@ -6,14 +6,13 @@ namespace AppName.Infrastructure.Tests;
 
 public class UserRepositoryTests
 {
-    private static AppDbContext NewContext(string dbPath)
+    private sealed class TestDbContextFactory : IDbContextFactory<AppDbContext>
     {
-        var options = new DbContextOptionsBuilder<AppDbContext>()
-            .UseSqlite($"Data Source={dbPath}")
-            .Options;
-        var ctx = new AppDbContext(options);
-        ctx.Database.EnsureCreated();
-        return ctx;
+        private readonly DbContextOptions<AppDbContext> _options;
+        public TestDbContextFactory(string dbPath)
+            => _options = new DbContextOptionsBuilder<AppDbContext>()
+                .UseSqlite($"Data Source={dbPath}").Options;
+        public AppDbContext CreateDbContext() => new AppDbContext(_options);
     }
 
     [Fact]
@@ -22,8 +21,12 @@ public class UserRepositoryTests
         var dbPath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid()}.db");
         try
         {
-            await using var ctx = NewContext(dbPath);
-            var repo = new UserRepository(ctx);
+            var factory = new TestDbContextFactory(dbPath);
+
+            using (var ctx = factory.CreateDbContext())
+                ctx.Database.EnsureCreated();
+
+            var repo = new UserRepository(factory);
 
             await repo.AddAsync(new User(Guid.NewGuid(), "Ada", "ada@x.com"));
             var all = await repo.GetAllAsync();
