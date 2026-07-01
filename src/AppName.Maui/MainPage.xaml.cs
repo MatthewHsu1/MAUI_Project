@@ -1,12 +1,9 @@
-using AppName.Maui.Bridge;
-
 namespace AppName.Maui;
 
 public partial class MainPage : ContentPage
 {
-    public MainPage(UsersBridge usersBridge)
+    public MainPage()
     {
         InitializeComponent();
-        HybridView.SetInvokeJavaScriptTarget(usersBridge);
     }
 }

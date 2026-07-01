@@ -1,0 +1,27 @@
+using AppName.Domain.Entities;
+
+namespace AppName.Domain.Abstractions;
+
+/// <summary>
+/// Pulls convertible-bond reference data and daily prices from an external market-data source.
+/// </summary>
+public interface IMarketDataProvider
+{
+    /// <summary>
+    /// Gets the static conversion terms for a bond, or null if not found.
+    /// </summary>
+    Task<ConvertibleBond?> GetIssuanceTermsAsync(string bondSymbol, CancellationToken ct = default);
+
+    /// <summary>
+    /// Gets the latest daily quote for an underlying stock, or null if not found.
+    /// </summary>
+    Task<StockQuote?> GetStockQuoteAsync(string stockSymbol, CancellationToken ct = default);
+
+    /// <summary>
+    /// Gets the latest daily market quote for a convertible bond.
+    /// NOT IMPLEMENTED in v1: the per-bond CB market price is not available from any free JSON API
+    /// (only a JS-gated TPEx web page). Implementations throw <see cref="NotImplementedException"/>.
+    /// See spec §2 (deferred scope).
+    /// </summary>
+    Task<BondQuote?> GetBondQuoteAsync(string bondSymbol, CancellationToken ct = default);
+}
