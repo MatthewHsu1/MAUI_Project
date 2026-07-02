@@ -196,4 +196,54 @@ public class MarketDataProviderTests
 
         Assert.Null(await fx.Build().GetBondQuoteAsync("11011"));
     }
+
+    [Fact]
+    public async Task GetAllIssuanceTermsAsync_MapsAllValidRows_AndSkipsUnparseable()
+    {
+        var fx = new Fixture().WithIssuance(
+            new TpexBondIssuanceRecord { BondCode = "11011", ShortName = "台泥一永", IssuerCode = "1101", ConversionPriceAtIssuance = "36.5000" },
+            new TpexBondIssuanceRecord { BondCode = "22222", ShortName = "壞資料", IssuerCode = "2222", ConversionPriceAtIssuance = "-" },
+            new TpexBondIssuanceRecord { BondCode = "33033", ShortName = "某三", IssuerCode = "3303", ConversionPriceAtIssuance = "50.0000" });
+
+        var bonds = await fx.Build().GetAllIssuanceTermsAsync();
+
+        Assert.Equal(2, bonds.Count);
+        Assert.Contains(bonds, b => b.Symbol == "11011" && b.ConversionPrice == 36.5m && b.UnderlyingSymbol == "1101");
+        Assert.Contains(bonds, b => b.Symbol == "33033" && b.ConversionPrice == 50.0m);
+        Assert.DoesNotContain(bonds, b => b.Symbol == "22222");
+    }
+
+    [Fact]
+    public async Task GetStockQuotesAsync_ResolvesAgainstSingleSnapshot_PreferringTwse()
+    {
+        var fx = new Fixture()
+            .WithTwse(new TwseStockQuoteRecord { Code = "1101", ClosingPrice = "36.80", Date = "1150629" })
+            .WithTpexOtc(new TpexStockQuoteRecord { SecuritiesCompanyCode = "6488", Close = "500.00", Date = "1150630" });
+
+        var quotes = await fx.Build().GetStockQuotesAsync(new[] { "1101", "6488", "9999" });
+
+        Assert.Equal(2, quotes.Count);
+        Assert.Equal(36.80m, quotes["1101"].Price);
+        Assert.Equal(new DateOnly(2026, 6, 29), quotes["1101"].AsOf);
+        Assert.Equal(500.00m, quotes["6488"].Price);
+        Assert.False(quotes.ContainsKey("9999"));
+        // Each underlying snapshot is fetched exactly once regardless of how many symbols are requested.
+        fx.Twse.Verify(c => c.GetAllAsync(It.IsAny<CancellationToken>()), Times.Once);
+        fx.TpexStock.Verify(c => c.GetAllAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task GetBondQuotesAsync_MapsRecords_WithLastPriceFallbackAndParScaling()
+    {
+        var fx = new Fixture().WithMisQuotes(
+            new TwseMisQuoteRecord { Code = "11011", LastPrice = "100.2000", PreviousClose = "100.0000", Date = "20260702" },
+            new TwseMisQuoteRecord { Code = "33033", LastPrice = "-", PreviousClose = "99.0000", Date = "20260702" },
+            new TwseMisQuoteRecord { Code = "44044", LastPrice = "-", PreviousClose = "-", Date = "20260702" });
+
+        var quotes = await fx.Build().GetBondQuotesAsync(new[] { "11011", "33033", "44044" });
+
+        Assert.Equal(100_200m, quotes["11011"].Price);   // 100.20% of par
+        Assert.Equal(99_000m, quotes["33033"].Price);    // z is "-", falls back to y
+        Assert.False(quotes.ContainsKey("44044"));       // no usable price → omitted
+    }
 }

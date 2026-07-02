@@ -86,6 +86,94 @@ public sealed class MarketDataProvider(
         return new BondQuote(bondSymbol, priceNt, asOf);
     }
 
+    /// <inheritdoc/>
+    public async Task<IReadOnlyList<ConvertibleBond>> GetAllIssuanceTermsAsync(CancellationToken ct = default)
+    {
+        var records = await issuance.GetAllAsync(ct);
+
+        var bonds = new List<ConvertibleBond>();
+
+        foreach (var r in records)
+        {
+            var conversionPrice = ParseDecimal(r.ConversionPriceAtIssuance);
+
+            if (conversionPrice <= 0)
+            {
+                continue; // unparseable/halted upstream row → skip
+            }
+
+            bonds.Add(new ConvertibleBond(r.BondCode, r.ShortName, ParValueConvention, conversionPrice, r.IssuerCode));
+        }
+
+        return bonds;
+    }
+
+    /// <inheritdoc/>
+    public async Task<IReadOnlyDictionary<string, StockQuote>> GetStockQuotesAsync(IEnumerable<string> stockSymbols, CancellationToken ct = default)
+    {
+        var wanted = stockSymbols.Where(s => !string.IsNullOrWhiteSpace(s)).Distinct().ToHashSet();
+
+        var result = new Dictionary<string, StockQuote>();
+
+        // One TWSE snapshot for the whole batch (preferred source).
+        var twse = await twseStocks.GetAllAsync(ct);
+
+        foreach (var t in twse)
+        {
+            if (!wanted.Contains(t.Code) || result.ContainsKey(t.Code)) continue;
+
+            if (ParseRocDate(t.Date) is { } asOf)
+            {
+                result[t.Code] = new StockQuote(t.Code, ParseDecimal(t.ClosingPrice), asOf);
+            }
+        }
+
+        // One TPEx OTC snapshot for anything TWSE did not resolve.
+        var otc = await tpexStocks.GetAllAsync(ct);
+
+        foreach (var o in otc)
+        {
+            if (!wanted.Contains(o.SecuritiesCompanyCode) || result.ContainsKey(o.SecuritiesCompanyCode)) continue;
+
+            if (ParseRocDate(o.Date) is { } asOf)
+            {
+                result[o.SecuritiesCompanyCode] = new StockQuote(o.SecuritiesCompanyCode, ParseDecimal(o.Close), asOf);
+            }
+        }
+
+        return result;
+    }
+
+    /// <inheritdoc/>
+    public async Task<IReadOnlyDictionary<string, BondQuote>> GetBondQuotesAsync(IEnumerable<string> bondSymbols, CancellationToken ct = default)
+    {
+        var codes = bondSymbols.Where(s => !string.IsNullOrWhiteSpace(s)).Distinct().ToList();
+
+        var quotes = await misBonds.GetQuotesAsync(codes, ct);
+
+        var result = new Dictionary<string, BondQuote>();
+
+        foreach (var q in quotes)
+        {
+            if (result.ContainsKey(q.Code)) continue;
+
+            // z (last trade) may be "-" for illiquid bonds; fall back to y (previous close).
+            var pointsRaw = IsNumeric(q.LastPrice) ? q.LastPrice : q.PreviousClose;
+            var points = ParseDecimal(pointsRaw);
+
+            if (points <= 0) continue;
+
+            if (ParseMisDate(q.Date) is not { } asOf) continue;
+
+            // MIS quotes CB price as a percentage of par; scale to NT$.
+            var priceNt = points / 100m * ParValueConvention;
+
+            result[q.Code] = new BondQuote(q.Code, priceNt, asOf);
+        }
+
+        return result;
+    }
+
     private static decimal ParseDecimal(string raw) =>
         decimal.TryParse(raw, NumberStyles.Any, CultureInfo.InvariantCulture, out var d) ? d : 0m;
 
