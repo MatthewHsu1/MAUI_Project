@@ -3,6 +3,7 @@ using AppName.Domain.Abstractions;
 using AppName.Domain.Entities;
 using AppName.Infrastructure.Clients.Tpex;
 using AppName.Infrastructure.Clients.Twse;
+using AppName.Infrastructure.Clients.TwseMis;
 
 namespace AppName.Infrastructure.Gateways;
 
@@ -10,7 +11,8 @@ namespace AppName.Infrastructure.Gateways;
 public sealed class MarketDataProvider(
     ITpexBondIssuanceApiClient issuance,
     ITwseStockQuoteApiClient twseStocks,
-    ITpexStockQuoteApiClient tpexStocks) : IMarketDataProvider
+    ITpexStockQuoteApiClient tpexStocks,
+    ITwseMisBondQuoteApiClient misBonds) : IMarketDataProvider
 {
     private const decimal ParValueConvention = 100_000m;
 
@@ -61,13 +63,43 @@ public sealed class MarketDataProvider(
     }
 
     /// <inheritdoc/>
-    public Task<BondQuote?> GetBondQuoteAsync(string bondSymbol, CancellationToken ct = default)
-        => throw new NotImplementedException(
-            "CB market price is not available from any free JSON API; it requires scraping the JS-gated TPEx " +
-            "page (NewCB_day_qry.php). Deferred — see spec §2.");
+    public async Task<BondQuote?> GetBondQuoteAsync(string bondSymbol, CancellationToken ct = default)
+    {
+        var quotes = await misBonds.GetQuotesAsync(new[] { bondSymbol }, ct);
+
+        var q = quotes.FirstOrDefault(x => x.Code == bondSymbol);
+
+        if (q is null) return null;
+
+        // z (last trade) may be "-" for illiquid bonds; fall back to y (previous close).
+        var pointsRaw = IsNumeric(q.LastPrice) ? q.LastPrice : q.PreviousClose;
+        var points = ParseDecimal(pointsRaw);
+
+        if (points <= 0) return null;
+
+        if (ParseMisDate(q.Date) is not { } asOf) return null;
+
+        // MIS quotes CB price as a percentage of par; scale to NT$ so it is
+        // comparable with ConversionValue.
+        var priceNt = points / 100m * ParValueConvention;
+
+        return new BondQuote(bondSymbol, priceNt, asOf);
+    }
 
     private static decimal ParseDecimal(string raw) =>
         decimal.TryParse(raw, NumberStyles.Any, CultureInfo.InvariantCulture, out var d) ? d : 0m;
+
+    private static bool IsNumeric(string raw) =>
+        decimal.TryParse(raw, NumberStyles.Any, CultureInfo.InvariantCulture, out _);
+
+    /// <summary>
+    /// Converts a TWSE MIS Gregorian date string ("20260702") to a DateOnly.
+    /// Returns null when the input is not a valid 8-char yyyyMMdd date.
+    /// </summary>
+    internal static DateOnly? ParseMisDate(string raw) =>
+        DateOnly.TryParseExact(raw, "yyyyMMdd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var d)
+            ? d
+            : null;
 
     /// <summary>
     /// Converts a Taiwan ROC date string ("1150629") to a Gregorian DateOnly (year = ROC + 1911).

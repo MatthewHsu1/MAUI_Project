@@ -17,3 +17,5 @@ src/AppName.Maui/Resources/Raw/web/
 
 # OS
 .DS_Store
+
+.playwright-cli

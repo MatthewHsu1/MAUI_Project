@@ -18,10 +18,9 @@ public interface IMarketDataProvider
     Task<StockQuote?> GetStockQuoteAsync(string stockSymbol, CancellationToken ct = default);
 
     /// <summary>
-    /// Gets the latest daily market quote for a convertible bond.
-    /// NOT IMPLEMENTED in v1: the per-bond CB market price is not available from any free JSON API
-    /// (only a JS-gated TPEx web page). Implementations throw <see cref="NotImplementedException"/>.
-    /// See spec §2 (deferred scope).
+    /// Gets the latest market quote for a convertible bond from the TWSE MIS
+    /// service, or null when no usable price is available (bond not found, no
+    /// tradable price, or an unparseable quote). Returns the price in NT$.
     /// </summary>
     Task<BondQuote?> GetBondQuoteAsync(string bondSymbol, CancellationToken ct = default);
 }

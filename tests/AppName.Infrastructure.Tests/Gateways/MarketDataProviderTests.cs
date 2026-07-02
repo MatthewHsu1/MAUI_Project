@@ -2,6 +2,8 @@ using AppName.Infrastructure.Clients.Tpex;
 using AppName.Infrastructure.Clients.Tpex.Models;
 using AppName.Infrastructure.Clients.Twse;
 using AppName.Infrastructure.Clients.Twse.Models;
+using AppName.Infrastructure.Clients.TwseMis;
+using AppName.Infrastructure.Clients.TwseMis.Models;
 using AppName.Infrastructure.Gateways;
 
 namespace AppName.Infrastructure.Tests.Gateways;
@@ -16,12 +18,16 @@ public class MarketDataProviderTests
         
         public Mock<ITpexStockQuoteApiClient> TpexStock { get; } = new();
 
+        public Mock<ITwseMisBondQuoteApiClient> Mis { get; } = new();
+
         public Fixture()
         {
             // Default baseline: every source returns an empty list (the "nothing found" case).
             Issuance.Setup(c => c.GetAllAsync(It.IsAny<CancellationToken>())).ReturnsAsync(Array.Empty<TpexBondIssuanceRecord>());
             Twse.Setup(c => c.GetAllAsync(It.IsAny<CancellationToken>())).ReturnsAsync(Array.Empty<TwseStockQuoteRecord>());
             TpexStock.Setup(c => c.GetAllAsync(It.IsAny<CancellationToken>())).ReturnsAsync(Array.Empty<TpexStockQuoteRecord>());
+            Mis.Setup(c => c.GetQuotesAsync(It.IsAny<IEnumerable<string>>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(Array.Empty<TwseMisQuoteRecord>());
         }
 
         public Fixture WithIssuance(params TpexBondIssuanceRecord[] records)
@@ -42,7 +48,14 @@ public class MarketDataProviderTests
             return this;
         }
 
-        public MarketDataProvider Build() => new(Issuance.Object, Twse.Object, TpexStock.Object);
+        public Fixture WithMisQuotes(params TwseMisQuoteRecord[] records)
+        {
+            Mis.Setup(c => c.GetQuotesAsync(It.IsAny<IEnumerable<string>>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(records);
+            return this;
+        }
+
+        public MarketDataProvider Build() => new(Issuance.Object, Twse.Object, TpexStock.Object, Mis.Object);
     }
 
     [Fact]
@@ -129,6 +142,58 @@ public class MarketDataProviderTests
     }
 
     [Fact]
-    public async Task GetBondQuoteAsync_Throws_NotImplemented()
-        => await Assert.ThrowsAsync<NotImplementedException>(() => new Fixture().Build().GetBondQuoteAsync("11011"));
+    public async Task GetBondQuoteAsync_UsesLastPrice_ScaledToNtDollars()
+    {
+        var fx = new Fixture().WithMisQuotes(new TwseMisQuoteRecord
+        { Code = "11011", LastPrice = "100.2000", PreviousClose = "100.0000", Date = "20260702" });
+
+        var q = await fx.Build().GetBondQuoteAsync("11011");
+
+        Assert.NotNull(q);
+        Assert.Equal(100_200m, q!.Price);            // 100.20% of NT$100,000 par
+        Assert.Equal(new DateOnly(2026, 7, 2), q.AsOf);
+    }
+
+    [Fact]
+    public async Task GetBondQuoteAsync_FallsBackToPreviousClose_WhenLastPriceIsDash()
+    {
+        var fx = new Fixture().WithMisQuotes(new TwseMisQuoteRecord
+        { Code = "11011", LastPrice = "-", PreviousClose = "100.0000", Date = "20260702" });
+
+        var q = await fx.Build().GetBondQuoteAsync("11011");
+
+        Assert.NotNull(q);
+        Assert.Equal(100_000m, q!.Price);            // falls back to y = 100.00% of par
+    }
+
+    [Fact]
+    public async Task GetBondQuoteAsync_ReturnsNull_WhenNoMatchingRecord()
+        => Assert.Null(await new Fixture().Build().GetBondQuoteAsync("9999"));
+
+    [Fact]
+    public async Task GetBondQuoteAsync_ReturnsNull_WhenOnlyRecordIsForDifferentCode()
+    {
+        var fx = new Fixture().WithMisQuotes(new TwseMisQuoteRecord
+        { Code = "22222", LastPrice = "100.0000", PreviousClose = "100.0000", Date = "20260702" });
+
+        Assert.Null(await fx.Build().GetBondQuoteAsync("11011"));
+    }
+
+    [Fact]
+    public async Task GetBondQuoteAsync_ReturnsNull_WhenNoUsablePrice()
+    {
+        var fx = new Fixture().WithMisQuotes(new TwseMisQuoteRecord
+        { Code = "11011", LastPrice = "-", PreviousClose = "-", Date = "20260702" });
+
+        Assert.Null(await fx.Build().GetBondQuoteAsync("11011"));
+    }
+
+    [Fact]
+    public async Task GetBondQuoteAsync_ReturnsNull_WhenDateMalformed()
+    {
+        var fx = new Fixture().WithMisQuotes(new TwseMisQuoteRecord
+        { Code = "11011", LastPrice = "100.2000", PreviousClose = "100.0000", Date = "bad" });
+
+        Assert.Null(await fx.Build().GetBondQuoteAsync("11011"));
+    }
 }

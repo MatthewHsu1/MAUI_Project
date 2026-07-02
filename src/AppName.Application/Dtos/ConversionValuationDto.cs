@@ -4,8 +4,8 @@ namespace AppName.Application.Dtos;
 
 /// <summary>
 /// Conversion valuation result for display. <see cref="BondPrice"/> and
-/// <see cref="IsInTheMoney"/> are null until the CB market-price source is
-/// implemented (deferred — see spec §2).
+/// <see cref="IsInTheMoney"/> are populated from the live CB quote when
+/// available, and null when no bond quote can be fetched.
 /// </summary>
 public record ConversionValuationDto
 {
@@ -61,15 +61,15 @@ public record ConversionValuationDto
     public DateOnly AsOf { get; init; }
 
     /// <summary>
-    /// Market price of the bond itself. Null in v1: the CB market price
-    /// source is deferred (see spec §2).
+    /// Market price of the bond itself, populated from the live CB quote
+    /// when available, and null when no bond quote can be fetched.
     /// </summary>
     [DisplayName("Bond Price")]
     public decimal? BondPrice { get; init; }
 
     /// <summary>
-    /// Whether the bond is currently in the money. Null in v1: depends on
-    /// <see cref="BondPrice"/>, which is deferred (see spec §2).
+    /// Whether the bond is currently in the money. Depends on
+    /// <see cref="BondPrice"/>; null when no bond quote can be fetched.
     /// </summary>
     [DisplayName("In The Money")]
     public bool? IsInTheMoney { get; init; }

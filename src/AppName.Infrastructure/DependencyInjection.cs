@@ -1,6 +1,7 @@
 using AppName.Domain.Abstractions;
 using AppName.Infrastructure.Clients.Tpex;
 using AppName.Infrastructure.Clients.Twse;
+using AppName.Infrastructure.Clients.TwseMis;
 using AppName.Infrastructure.Gateways;
 using AppName.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -16,8 +17,10 @@ public static class DependencyInjection
 
         services.AddOptions<TpexApiOptions>();
         services.AddOptions<TwseApiOptions>();
+        services.AddOptions<TwseMisApiOptions>();
         services.AddTpexHttpClients();
         services.AddTwseHttpClients();
+        services.AddTwseMisHttpClients();
 
         services.AddScoped<IMarketDataProvider, MarketDataProvider>();
         services.AddScoped<IConvertibleBondRepository, ConvertibleBondRepository>();
