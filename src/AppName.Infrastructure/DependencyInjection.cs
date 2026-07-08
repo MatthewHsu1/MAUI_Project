@@ -25,6 +25,7 @@ public static class DependencyInjection
         services.AddScoped<IMarketDataProvider, MarketDataProvider>();
         services.AddScoped<IConvertibleBondRepository, ConvertibleBondRepository>();
         services.AddScoped<IValuationSnapshotRepository, ValuationSnapshotRepository>();
+        services.AddScoped<IBondValuationRefreshStateRepository, BondValuationRefreshStateRepository>();
         return services;
     }
 }
