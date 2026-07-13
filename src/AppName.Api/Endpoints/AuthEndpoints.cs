@@ -22,9 +22,24 @@ public static class AuthEndpoints
         group.MapPost("/auth/token", (IConfiguration config) =>
         {
             var jwtSection = config.GetSection("Jwt");
-            var issuer = jwtSection["Issuer"] ?? throw new InvalidOperationException("Jwt:Issuer is not configured.");
-            var audience = jwtSection["Audience"] ?? throw new InvalidOperationException("Jwt:Audience is not configured.");
-            var key = jwtSection["Key"] ?? throw new InvalidOperationException("Jwt:Key is not configured.");
+            var issuer = jwtSection["Issuer"];
+            var audience = jwtSection["Audience"];
+            var key = jwtSection["Key"];
+
+            if (string.IsNullOrWhiteSpace(issuer))
+            {
+                throw new InvalidOperationException("Jwt:Issuer is not configured.");
+            }
+
+            if (string.IsNullOrWhiteSpace(audience))
+            {
+                throw new InvalidOperationException("Jwt:Audience is not configured.");
+            }
+
+            if (string.IsNullOrWhiteSpace(key))
+            {
+                throw new InvalidOperationException("Jwt:Key is not configured.");
+            }
 
             var signingKey = new SymmetricSecurityKey(System.Text.Encoding.UTF8.GetBytes(key));
             var credentials = new SigningCredentials(signingKey, SecurityAlgorithms.HmacSha256);
