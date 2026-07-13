@@ -20,4 +20,10 @@
     <PackageReference Include="Microsoft.Extensions.Options" />
   </ItemGroup>
 
+  <!-- Non-secret CA cert (e.g. YugabyteDB) shipped to the build output so `dotnet ef`
+       migrations can resolve a relative `Root Certificate=certs/...` at design time. -->
+  <ItemGroup>
+    <None Include="certs\**" Exclude="certs\*.md" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

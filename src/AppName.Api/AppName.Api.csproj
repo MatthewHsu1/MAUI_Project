@@ -16,4 +16,10 @@
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
   </ItemGroup>
 
+  <!-- Non-secret CA cert (e.g. YugabyteDB) shipped next to the app so a relative
+       `Root Certificate=certs/...` in the connection string resolves at runtime. -->
+  <ItemGroup>
+    <None Include="certs\**" Exclude="certs\*.md" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

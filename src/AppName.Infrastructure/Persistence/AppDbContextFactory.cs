@@ -33,6 +33,8 @@ public sealed class AppDbContextFactory : IDesignTimeDbContextFactory<AppDbConte
                 $"Set it with: dotnet user-secrets set \"ConnectionStrings:{ConnectionStringName}\" \"<value>\"");
         }
 
+        connectionString = NpgsqlConnectionString.ResolveRootCertificate(connectionString);
+
         var options = new DbContextOptionsBuilder<AppDbContext>()
             .UseNpgsql(connectionString)
             .Options;

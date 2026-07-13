@@ -13,6 +13,8 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, string connectionString)
     {
+        connectionString = NpgsqlConnectionString.ResolveRootCertificate(connectionString);
+
         services.AddDbContextFactory<AppDbContext>(options => options.UseNpgsql(connectionString));
 
         services.AddOptions<TpexApiOptions>();
