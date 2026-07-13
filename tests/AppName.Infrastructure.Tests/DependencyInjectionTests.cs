@@ -9,7 +9,7 @@ public class DependencyInjectionTests
     public void AddInfrastructure_Resolves_MarketDataProvider()
     {
         var services = new ServiceCollection();
-        services.AddInfrastructure(":memory:");
+        services.AddInfrastructure("Host=localhost;Database=test");
         using var sp = services.BuildServiceProvider();
         Assert.NotNull(sp.GetService<IMarketDataProvider>());
     }
@@ -18,7 +18,7 @@ public class DependencyInjectionTests
     public void AddInfrastructure_Resolves_BondRepository()
     {
         var services = new ServiceCollection();
-        services.AddInfrastructure(":memory:");
+        services.AddInfrastructure("Host=localhost;Database=test");
         using var sp = services.BuildServiceProvider();
         Assert.NotNull(sp.GetService<IConvertibleBondRepository>());
     }
