@@ -1,9 +1,8 @@
-using System.Text;
+using AppName.Api.Authentication;
 using AppName.Api.Endpoints;
+using SecretKeysConstants = AppName.Api.SecretKeysConstants;
 using AppName.Application;
 using AppName.Infrastructure;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.IdentityModel.Tokens;
 using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -18,53 +17,17 @@ builder.Services.AddOpenApi();
 
 // --- Auth (JWT bearer, dev stub) ----------------------------------------
 
-var jwtSection = builder.Configuration.GetSection("Jwt");
-var jwtIssuer = jwtSection["Issuer"];
-var jwtAudience = jwtSection["Audience"];
-var jwtKey = jwtSection["Key"];
-
-if (string.IsNullOrWhiteSpace(jwtIssuer))
-{
-    throw new InvalidOperationException("Jwt:Issuer is not configured.");
-}
-
-if (string.IsNullOrWhiteSpace(jwtAudience))
-{
-    throw new InvalidOperationException("Jwt:Audience is not configured.");
-}
-
-if (string.IsNullOrWhiteSpace(jwtKey))
-{
-    throw new InvalidOperationException("Jwt:Key is not configured.");
-}
-
-builder.Services
-    .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer(options =>
-    {
-        options.TokenValidationParameters = new TokenValidationParameters
-        {
-            ValidateIssuer = true,
-            ValidIssuer = jwtIssuer,
-            ValidateAudience = true,
-            ValidAudience = jwtAudience,
-            ValidateIssuerSigningKey = true,
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey)),
-            ValidateLifetime = true,
-            ClockSkew = TimeSpan.FromSeconds(30),
-        };
-    });
+builder.Services.AddJwtAuthentication(builder.Configuration);
 
 builder.Services.AddAuthorization();
 
 // --- CORS ----------------------------------------------------------------
 
-const string CorsPolicyName = "ClientOrigins";
-var corsOrigins = builder.Configuration.GetSection("Cors:Origins").Get<string[]>() ?? [];
+var corsOrigins = builder.Configuration.GetSection(SecretKeysConstants.Cors.OriginsSection).Get<string[]>() ?? [];
 
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy(CorsPolicyName, policy =>
+    options.AddPolicy(SecretKeysConstants.Cors.PolicyName, policy =>
         policy.WithOrigins(corsOrigins)
             .AllowAnyHeader()
             .AllowAnyMethod()
@@ -87,7 +50,7 @@ if (app.Environment.IsDevelopment())
     app.MapScalarApiReference();
 }
 
-app.UseCors(CorsPolicyName);
+app.UseCors(SecretKeysConstants.Cors.PolicyName);
 app.UseAuthentication();
 app.UseAuthorization();
 

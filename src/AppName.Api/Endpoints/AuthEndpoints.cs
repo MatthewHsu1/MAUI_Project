@@ -1,6 +1,7 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text.Json.Serialization;
+using AppName.Api.Authentication;
 using Microsoft.IdentityModel.Tokens;
 
 namespace AppName.Api.Endpoints;
@@ -21,27 +22,10 @@ public static class AuthEndpoints
         // before any non-local deployment — there is no credential check here.
         group.MapPost("/auth/token", (IConfiguration config) =>
         {
-            var jwtSection = config.GetSection("Jwt");
-            var issuer = jwtSection["Issuer"];
-            var audience = jwtSection["Audience"];
-            var key = jwtSection["Key"];
+            var jwt = JwtSettings.FromConfiguration(config);
 
-            if (string.IsNullOrWhiteSpace(issuer))
-            {
-                throw new InvalidOperationException("Jwt:Issuer is not configured.");
-            }
-
-            if (string.IsNullOrWhiteSpace(audience))
-            {
-                throw new InvalidOperationException("Jwt:Audience is not configured.");
-            }
-
-            if (string.IsNullOrWhiteSpace(key))
-            {
-                throw new InvalidOperationException("Jwt:Key is not configured.");
-            }
-
-            var signingKey = new SymmetricSecurityKey(System.Text.Encoding.UTF8.GetBytes(key));
+            var signingKey = new SymmetricSecurityKey(System.Text.Encoding.UTF8.GetBytes(jwt.Key));
+            
             var credentials = new SigningCredentials(signingKey, SecurityAlgorithms.HmacSha256);
 
             var expires = DateTime.UtcNow.AddHours(1);
@@ -53,8 +37,8 @@ public static class AuthEndpoints
             };
 
             var token = new JwtSecurityToken(
-                issuer: issuer,
-                audience: audience,
+                issuer: jwt.Issuer,
+                audience: jwt.Audience,
                 claims: claims,
                 expires: expires,
                 signingCredentials: credentials);
