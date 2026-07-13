@@ -10,17 +10,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 // --- Composition -----------------------------------------------------------
 
-var connectionString = builder.Configuration.GetConnectionString("AppDb");
-
-if (string.IsNullOrWhiteSpace(connectionString))
-{
-    throw new InvalidOperationException(
-        "Connection string 'ConnectionStrings:AppDb' is not configured. " +
-        "Set it in appsettings.{Environment}.json, user-secrets, or the " +
-        "ConnectionStrings__AppDb environment variable.");
-}
-
-builder.Services.AddApplication().AddInfrastructure(connectionString);
+builder.Services.AddApplication().AddInfrastructure(builder.Configuration);
 
 // --- OpenAPI -----------------------------------------------------------
 

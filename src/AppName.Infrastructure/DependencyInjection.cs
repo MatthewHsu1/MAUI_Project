@@ -5,17 +5,29 @@ using AppName.Infrastructure.Clients.TwseMis;
 using AppName.Infrastructure.Gateways;
 using AppName.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace AppName.Infrastructure;
 
 public static class DependencyInjection
 {
-    public static IServiceCollection AddInfrastructure(this IServiceCollection services, string connectionString)
+    public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
+        var connectionString = configuration.GetConnectionString(SecretKeysConstants.ConnectionStrings.AppDb);
+
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            throw new InvalidOperationException(
+                $"Connection string 'ConnectionStrings:{SecretKeysConstants.ConnectionStrings.AppDb}' is not configured. " +
+                "Set it in appsettings.{Environment}.json, user-secrets, or the " +
+                $"ConnectionStrings__{SecretKeysConstants.ConnectionStrings.AppDb} environment variable.");
+        }
+
         connectionString = NpgsqlConnectionString.ResolveRootCertificate(connectionString);
 
-        services.AddDbContextFactory<AppDbContext>(options => options.UseNpgsql(connectionString));
+        services.AddDbContextFactory<AppDbContext>(options =>
+            options.UseNpgsql(connectionString, npgsql => npgsql.EnableRetryOnFailure()));
 
         services.AddOptions<TpexApiOptions>();
         services.AddOptions<TwseApiOptions>();

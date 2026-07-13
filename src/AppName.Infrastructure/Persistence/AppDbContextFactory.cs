@@ -10,11 +10,6 @@ namespace AppName.Infrastructure.Persistence;
 /// </summary>
 public sealed class AppDbContextFactory : IDesignTimeDbContextFactory<AppDbContext>
 {
-    /// <summary>
-    /// Name of the connection string read from configuration (appsettings.json or user secrets).
-    /// </summary>
-    private const string ConnectionStringName = "AppDb";
-
     /// <inheritdoc/>
     public AppDbContext CreateDbContext(string[] args)
     {
@@ -24,13 +19,13 @@ public sealed class AppDbContextFactory : IDesignTimeDbContextFactory<AppDbConte
             .AddUserSecrets<AppDbContextFactory>(optional: true)
             .Build();
 
-        var connectionString = configuration.GetConnectionString(ConnectionStringName);
+        var connectionString = configuration.GetConnectionString(SecretKeysConstants.ConnectionStrings.AppDb);
 
         if (string.IsNullOrEmpty(connectionString))
         {
             throw new InvalidOperationException(
-                $"The connection string '{ConnectionStringName}' is missing or empty. " +
-                $"Set it with: dotnet user-secrets set \"ConnectionStrings:{ConnectionStringName}\" \"<value>\"");
+                $"The connection string '{SecretKeysConstants.ConnectionStrings.AppDb}' is missing or empty. " +
+                $"Set it with: dotnet user-secrets set \"ConnectionStrings:{SecretKeysConstants.ConnectionStrings.AppDb}\" \"<value>\"");
         }
 
         connectionString = NpgsqlConnectionString.ResolveRootCertificate(connectionString);
