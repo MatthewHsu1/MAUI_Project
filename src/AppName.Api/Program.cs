@@ -1,4 +1,5 @@
 using AppName.Api.Authentication;
+using AppName.Api.Cors;
 using AppName.Api.Endpoints;
 using SecretKeysConstants = AppName.Api.SecretKeysConstants;
 using AppName.Application;
@@ -23,16 +24,7 @@ builder.Services.AddAuthorization();
 
 // --- CORS ----------------------------------------------------------------
 
-var corsOrigins = builder.Configuration.GetSection(SecretKeysConstants.Cors.OriginsSection).Get<string[]>() ?? [];
-
-builder.Services.AddCors(options =>
-{
-    options.AddPolicy(SecretKeysConstants.Cors.PolicyName, policy =>
-        policy.WithOrigins(corsOrigins)
-            .AllowAnyHeader()
-            .AllowAnyMethod()
-            .AllowCredentials());
-});
+builder.Services.AddApiCors(builder.Configuration);
 
 var app = builder.Build();
 
