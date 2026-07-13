@@ -11,9 +11,9 @@ namespace AppName.Infrastructure;
 
 public static class DependencyInjection
 {
-    public static IServiceCollection AddInfrastructure(this IServiceCollection services, string dbPath)
+    public static IServiceCollection AddInfrastructure(this IServiceCollection services, string connectionString)
     {
-        services.AddDbContextFactory<AppDbContext>(options => options.UseSqlite($"Data Source={dbPath}"));
+        services.AddDbContextFactory<AppDbContext>(options => options.UseNpgsql(connectionString));
 
         services.AddOptions<TpexApiOptions>();
         services.AddOptions<TwseApiOptions>();

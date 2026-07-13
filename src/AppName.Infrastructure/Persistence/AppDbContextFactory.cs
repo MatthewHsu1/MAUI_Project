@@ -13,9 +13,9 @@ public sealed class AppDbContextFactory : IDesignTimeDbContextFactory<AppDbConte
     public AppDbContext CreateDbContext(string[] args)
     {
         // Design-time only (used by `dotnet ef`); the running app uses AddInfrastructure's
-        // app-data dbPath (FileSystem.AppDataDirectory) instead of this local file.
+        // app-supplied connectionString instead of this placeholder.
         var options = new DbContextOptionsBuilder<AppDbContext>()
-            .UseSqlite("Data Source=app.db")
+            .UseNpgsql("Host=localhost;Port=5432;Database=appname;Username=postgres;Password=postgres")
             .Options;
 
         return new AppDbContext(options);
