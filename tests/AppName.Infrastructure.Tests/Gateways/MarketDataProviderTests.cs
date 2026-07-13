@@ -214,6 +214,20 @@ public class MarketDataProviderTests
     }
 
     [Fact]
+    public async Task GetAllIssuanceTermsAsync_DedupesByBondCode_KeepingFirst()
+    {
+        var fx = new Fixture().WithIssuance(
+            new TpexBondIssuanceRecord { BondCode = "11011", ShortName = "台泥一永", IssuerCode = "1101", ConversionPriceAtIssuance = "36.5000" },
+            new TpexBondIssuanceRecord { BondCode = "11011", ShortName = "重複", IssuerCode = "1101", ConversionPriceAtIssuance = "40.0000" });
+
+        var bonds = await fx.Build().GetAllIssuanceTermsAsync();
+
+        var only = Assert.Single(bonds);
+        Assert.Equal("11011", only.Symbol);
+        Assert.Equal(36.5m, only.ConversionPrice); // first occurrence wins
+    }
+
+    [Fact]
     public async Task GetStockQuotesAsync_ResolvesAgainstSingleSnapshot_PreferringTwse()
     {
         var fx = new Fixture()

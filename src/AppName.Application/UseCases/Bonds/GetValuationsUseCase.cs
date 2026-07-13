@@ -33,7 +33,9 @@ public sealed class GetValuationsUseCase(
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 // Freshness is best-effort; a provider outage must serve stale cache,
-                // not fail the caller. Snapshots below are whatever we already have.
+                // not fail the caller.
+                await refreshStateRepo.SetAsync(
+                    new BondValuationRefreshState(BondValuationRefreshState.SingletonId, state.LastAsOf, today), ct);
             }
         }
 

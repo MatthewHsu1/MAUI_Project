@@ -22,6 +22,8 @@ public class GetValuationsUseCaseTests
             Snapshots.Setup(s => s.GetAllAsync(It.IsAny<CancellationToken>()))
                 .ReturnsAsync(Array.Empty<BondValuationSnapshot>());
             Refresh.Setup(r => r.ExecuteAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+            RefreshState.Setup(r => r.SetAsync(It.IsAny<BondValuationRefreshState>(), It.IsAny<CancellationToken>()))
+                .Returns(Task.CompletedTask);
         }
 
         public Fixture WithLastAttempt(DateOnly date)
@@ -96,5 +98,18 @@ public class GetValuationsUseCaseTests
 
         var dto = Assert.Single(dtos);      // no throw; stale cache served
         Assert.Null(dto.BondPrice);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_StampsTodayAttempt_WhenRefreshThrows()
+    {
+        var fx = new Fixture()
+            .WithLastAttempt(new DateOnly(2026, 7, 1))
+            .WithFailingRefresh();
+
+        await fx.Build().ExecuteAsync();
+
+        fx.RefreshState.Verify(r => r.SetAsync(
+            It.Is<BondValuationRefreshState>(s => s.LastAttemptDate == TwToday), It.IsAny<CancellationToken>()), Times.Once);
     }
 }

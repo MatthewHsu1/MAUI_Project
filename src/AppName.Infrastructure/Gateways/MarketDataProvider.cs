@@ -93,7 +93,7 @@ public sealed class MarketDataProvider(
 
         var bonds = new List<ConvertibleBond>();
 
-        foreach (var r in records)
+        foreach (var r in records.DistinctBy(r => r.BondCode))
         {
             var conversionPrice = ParseDecimal(r.ConversionPriceAtIssuance);
 

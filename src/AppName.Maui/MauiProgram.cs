@@ -1,5 +1,3 @@
-using AppName.Application;
-using AppName.Infrastructure;
 using AppName.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -22,11 +20,7 @@ public static class MauiProgram
 
         var dbPath = Path.Combine(FileSystem.AppDataDirectory, "app.db");
 
-        builder.Services.AddApplication();
-        
-        builder.Services.AddInfrastructure(dbPath);
-
-        builder.Services.AddTransient<MainPage>();
+        builder.Services.AddAppServices(dbPath);
 
 #if DEBUG
         builder.Logging.AddDebug();
