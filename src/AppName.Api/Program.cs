@@ -1,10 +1,10 @@
 using AppName.Api.Authentication;
 using AppName.Api.Cors;
 using AppName.Api.Endpoints;
-using SecretKeysConstants = AppName.Api.SecretKeysConstants;
 using AppName.Application;
 using AppName.Infrastructure;
 using Scalar.AspNetCore;
+using SecretKeysConstants = AppName.Api.SecretKeysConstants;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -27,13 +27,6 @@ builder.Services.AddAuthorization();
 builder.Services.AddApiCors(builder.Configuration);
 
 var app = builder.Build();
-
-// --- Migrations --------------------------------------------------------
-// Startup migration (db.Database.Migrate()) is intentionally deferred to a
-// later task — this scaffold does not apply EF Core migrations on boot.
-// When that lands, it belongs here, before the app starts serving requests.
-
-// --- Middleware pipeline ---------------------------------------------------
 
 app.MapOpenApi();
 
