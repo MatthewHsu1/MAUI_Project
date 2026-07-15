@@ -1,3 +1,9 @@
 dist
 node_modules
 package-lock.json
+
+# Agent tooling scratch, not source. These are created in whatever directory a
+# sandboxed command runs in, and .mcp.json is a /dev/null bind-mount that
+# prettier cannot read (EACCES). Never present in a clean CI checkout.
+.claude
+.mcp.json
