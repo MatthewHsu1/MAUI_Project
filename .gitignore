@@ -12,5 +12,10 @@ node_modules/
 dist/
 src/AppName.Maui/Resources/Raw/web/
 
+# Docs (not tracked)
+/docs/
+
 # OS
 .DS_Store
+
+.playwright-cli

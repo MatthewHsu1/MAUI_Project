@@ -55,3 +55,48 @@ jobs:
 
       - name: Build
         run: npm run build
+
+  # Builds the MAUI host (src/AppName.Maui) per target platform. Each platform's
+  # SDK is only available on certain OSes: iOS and MacCatalyst require Xcode on a
+  # macOS runner, Windows (WinUI) requires the Windows SDK on a windows runner, and
+  # Android can build anywhere but is included here too. This is why these builds
+  # can't run on the single ubuntu runner used by dotnet-tests above.
+  maui-build:
+    name: maui-build
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            tfm: net10.0-android
+          - os: windows-latest
+            tfm: net10.0-windows10.0.19041.0
+          - os: macos-26
+            tfm: net10.0-ios
+          - os: macos-26
+            tfm: net10.0-maccatalyst
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode 26.6
+        if: runner.os == 'macOS'
+        run: sudo xcode-select -s /Applications/Xcode_26.6.app
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: src/web/package-lock.json
+
+      - name: Install MAUI workloads
+        run: dotnet workload restore src/AppName.Maui/AppName.Maui.csproj
+
+      - name: Build MAUI head (${{ matrix.tfm }})
+        run: dotnet build src/AppName.Maui/AppName.Maui.csproj -f ${{ matrix.tfm }} -c Release

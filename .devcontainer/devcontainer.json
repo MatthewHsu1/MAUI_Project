@@ -1,0 +1,16 @@
+// .devcontainer/devcontainer.json
+//
+// Dev container for building the AppName.Maui Android head without an Android
+// SDK / Java / MAUI workload on the host. Builds docker/android.Dockerfile,
+// which carries the JDK, Android cmdline-tools, Node.js, and the
+// `maui-android` workload.
+{
+  "name": "AppName MAUI (Android, dotnet 10)",
+  "build": {
+    "dockerfile": "../docker/android.Dockerfile",
+    "context": ".."
+  },
+  "workspaceFolder": "/src",
+  "workspaceMount": "source=${localWorkspaceFolder},target=/src,type=bind",
+  "remoteUser": "root"
+}

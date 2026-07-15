@@ -68,11 +68,25 @@
 	<ItemGroup>
 		<PackageReference Include="Microsoft.Maui.Controls" />
 		<PackageReference Include="Microsoft.Extensions.Logging.Debug" />
+		<PackageReference Include="Microsoft.Extensions.Http" />
+		<PackageReference Include="Microsoft.Extensions.Configuration.Json" />
+		<PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
+		<PackageReference Include="Scrutor" />
 	</ItemGroup>
 
 	<ItemGroup>
+		<!-- App configuration is embedded (no filesystem appsettings on device) and
+		     read as a manifest resource stream in MauiProgram. -->
+		<EmbeddedResource Include="appsettings.json" />
+		<EmbeddedResource Include="appsettings.Development.json" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<!-- Application is referenced only for AppName.Application.Dtos.ConversionValuationDto
+		     (Application -> Domain only, so this pulls in no EF/DB packages). MAUI does not
+		     reference AppName.Infrastructure and does not run use-cases or touch a database
+		     directly - it is a thin HTTP client over AppName.Api. -->
 		<ProjectReference Include="..\AppName.Application\AppName.Application.csproj" />
-		<ProjectReference Include="..\AppName.Infrastructure\AppName.Infrastructure.csproj" />
 	</ItemGroup>
 
 	<PropertyGroup>
