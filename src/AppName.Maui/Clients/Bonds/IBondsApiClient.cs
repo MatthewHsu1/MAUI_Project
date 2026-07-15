@@ -1,6 +1,6 @@
 using AppName.Application.Dtos;
 
-namespace AppName.Maui.Services;
+namespace AppName.Maui.Clients.Bonds;
 
 /// <summary>
 /// HTTP access to the bond-valuation endpoints exposed by AppName.Api. This

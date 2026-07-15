@@ -1,4 +1,4 @@
-namespace AppName.Maui.Services;
+namespace AppName.Maui.Clients.Auth;
 
 /// <summary>
 /// Supplies a bearer token for authenticated calls to AppName.Api.

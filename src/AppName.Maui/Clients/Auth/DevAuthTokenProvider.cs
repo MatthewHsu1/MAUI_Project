@@ -1,7 +1,7 @@
 using System.Net.Http.Json;
 using System.Text.Json.Serialization;
 
-namespace AppName.Maui.Services;
+namespace AppName.Maui.Clients.Auth;
 
 /// <inheritdoc/>
 /// <remarks>
@@ -23,7 +23,9 @@ public sealed class DevAuthTokenProvider(IHttpClientFactory httpClientFactory) :
     internal const string AuthClientName = "AppName.Maui.AuthClient";
 
     private readonly SemaphoreSlim _gate = new(1, 1);
+
     private string? _cachedToken;
+
     private DateTimeOffset _expiresAt = DateTimeOffset.MinValue;
 
     /// <inheritdoc/>
@@ -43,13 +45,16 @@ public sealed class DevAuthTokenProvider(IHttpClientFactory httpClientFactory) :
             }
 
             var client = httpClientFactory.CreateClient(AuthClientName);
+
             using var response = await client.PostAsync("auth/token", content: null, ct);
+
             response.EnsureSuccessStatusCode();
 
             var payload = await response.Content.ReadFromJsonAsync<TokenResponse>(cancellationToken: ct)
                 ?? throw new InvalidOperationException("Dev auth token endpoint returned no content.");
 
             _cachedToken = payload.AccessToken;
+
             // 1-minute safety margin so a token never expires mid-request.
             _expiresAt = DateTimeOffset.UtcNow.AddSeconds(payload.ExpiresIn) - TimeSpan.FromMinutes(1);
 

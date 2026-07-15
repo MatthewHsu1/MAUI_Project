@@ -1,5 +1,5 @@
 using AppName.Application.Dtos;
-using AppName.Maui.Services;
+using AppName.Maui.Clients.Bonds;
 
 namespace AppName.Maui.Bridge;
 

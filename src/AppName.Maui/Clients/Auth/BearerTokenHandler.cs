@@ -1,6 +1,6 @@
 using System.Net.Http.Headers;
 
-namespace AppName.Maui.Services;
+namespace AppName.Maui.Clients.Auth;
 
 /// <summary>
 /// Attaches a bearer token obtained from <see cref="IAuthTokenProvider"/> to
@@ -15,6 +15,7 @@ public sealed class BearerTokenHandler(IAuthTokenProvider tokenProvider) : Deleg
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
     {
         var token = await tokenProvider.GetTokenAsync(ct);
+
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
         return await base.SendAsync(request, ct);

@@ -1,7 +1,7 @@
 using System.Net.Http.Json;
 using AppName.Application.Dtos;
 
-namespace AppName.Maui.Services;
+namespace AppName.Maui.Clients.Bonds;
 
 /// <inheritdoc/>
 public sealed class BondsApiClient(HttpClient httpClient) : IBondsApiClient
