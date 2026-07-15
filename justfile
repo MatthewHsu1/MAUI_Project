@@ -58,20 +58,20 @@ run-maui:
 
 # ---- EF Core migrations ------------------------------------------------------
 
-# Add a migration: `just migrate-add AddSomething`.
+# Add a migration, e.g. `just migrate-add AddSomething` (offline; does not touch the database).
 migrate-add name:
     dotnet ef migrations add {{name}} \
         --project src/AppName.Infrastructure \
         --startup-project src/AppName.Infrastructure \
         --output-dir Migrations
 
-# Apply migrations to a local SQLite file (design-time; the app itself migrates on startup).
+# Apply pending migrations to the ConnectionStrings:AppDb database — mind which one you point at.
 migrate-update:
     dotnet ef database update \
         --project src/AppName.Infrastructure \
         --startup-project src/AppName.Infrastructure
 
-# List migrations.
+# List migrations and which are applied (`--no-connect` to skip the database round-trip).
 migrate-list:
     dotnet ef migrations list --project src/AppName.Infrastructure --startup-project src/AppName.Infrastructure
 

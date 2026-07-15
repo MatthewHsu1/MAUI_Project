@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.Extensions.Configuration;
 
 namespace AppName.Infrastructure.Persistence;
@@ -32,6 +33,7 @@ public sealed class AppDbContextFactory : IDesignTimeDbContextFactory<AppDbConte
 
         var options = new DbContextOptionsBuilder<AppDbContext>()
             .UseNpgsql(connectionString)
+            .ReplaceService<IHistoryRepository, YugabyteHistoryRepository>()
             .Options;
 
         return new AppDbContext(options);

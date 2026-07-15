@@ -5,6 +5,7 @@ using AppName.Infrastructure.Clients.TwseMis;
 using AppName.Infrastructure.Gateways;
 using AppName.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -27,7 +28,9 @@ public static class DependencyInjection
         connectionString = NpgsqlConnectionString.ResolveRootCertificate(connectionString);
 
         services.AddDbContextFactory<AppDbContext>(options =>
-            options.UseNpgsql(connectionString, npgsql => npgsql.EnableRetryOnFailure()));
+            options
+                .UseNpgsql(connectionString, npgsql => npgsql.EnableRetryOnFailure())
+                .ReplaceService<IHistoryRepository, YugabyteHistoryRepository>());
 
         services.AddOptions<TpexApiOptions>();
         services.AddOptions<TwseApiOptions>();
