@@ -4,7 +4,9 @@ declare const HybridWebView: {
 };
 
 export function invoke<T>(method: string, args?: unknown[]): Promise<T> {
-  return (args !== undefined
-    ? HybridWebView.InvokeDotNet(method, args)
-    : HybridWebView.InvokeDotNet(method)) as Promise<T>;
+  return (
+    args !== undefined
+      ? HybridWebView.InvokeDotNet(method, args)
+      : HybridWebView.InvokeDotNet(method)
+  ) as Promise<T>;
 }

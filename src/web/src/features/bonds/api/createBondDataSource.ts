@@ -6,7 +6,8 @@ import { HybridBridgeSource } from "./HybridBridgeSource";
  * the MAUI host; the HTTP API source is not built yet.
  */
 export function createBondDataSource(): BondDataSource {
-  const hasBridge = typeof (globalThis as { HybridWebView?: unknown }).HybridWebView !== "undefined";
+  const hasBridge =
+    typeof (globalThis as { HybridWebView?: unknown }).HybridWebView !== "undefined";
 
   if (hasBridge) {
     return new HybridBridgeSource();
