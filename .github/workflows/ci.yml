@@ -71,13 +71,17 @@ jobs:
             tfm: net10.0-android
           - os: windows-latest
             tfm: net10.0-windows10.0.19041.0
-          - os: macos-latest
+          - os: macos-26
             tfm: net10.0-ios
-          - os: macos-latest
+          - os: macos-26
             tfm: net10.0-maccatalyst
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Select Xcode 26.6
+        if: runner.os == 'macOS'
+        run: sudo xcode-select -s /Applications/Xcode_26.6.app
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
