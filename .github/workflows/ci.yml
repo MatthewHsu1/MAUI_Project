@@ -99,4 +99,4 @@ jobs:
         run: dotnet workload install ${{ matrix.workload }}
 
       - name: Build MAUI head (${{ matrix.tfm }})
-        run: dotnet build src/AppName.Maui/AppName.Maui.csproj -f ${{ matrix.tfm }} -c Release
+        run: dotnet build src/AppName.Maui/AppName.Maui.csproj -f ${{ matrix.tfm }} -p:TargetFrameworks=${{ matrix.tfm }} -c Release
