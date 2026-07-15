@@ -69,16 +69,12 @@ jobs:
         include:
           - os: ubuntu-latest
             tfm: net10.0-android
-            workload: maui-android
           - os: windows-latest
             tfm: net10.0-windows10.0.19041.0
-            workload: maui-windows
           - os: macos-latest
             tfm: net10.0-ios
-            workload: maui-ios
           - os: macos-latest
             tfm: net10.0-maccatalyst
-            workload: maui-maccatalyst
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -95,8 +91,8 @@ jobs:
           cache: 'npm'
           cache-dependency-path: src/web/package-lock.json
 
-      - name: Install MAUI workload (${{ matrix.workload }})
-        run: dotnet workload install ${{ matrix.workload }}
+      - name: Install MAUI workloads
+        run: dotnet workload restore src/AppName.Maui/AppName.Maui.csproj
 
       - name: Build MAUI head (${{ matrix.tfm }})
-        run: dotnet build src/AppName.Maui/AppName.Maui.csproj -f ${{ matrix.tfm }} -p:TargetFrameworks=${{ matrix.tfm }} -c Release
+        run: dotnet build src/AppName.Maui/AppName.Maui.csproj -f ${{ matrix.tfm }} -c Release
