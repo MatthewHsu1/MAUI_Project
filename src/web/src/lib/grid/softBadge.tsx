@@ -1,4 +1,3 @@
-import { Badge } from "@radix-ui/themes";
 import type { RadixColor } from "./radixBadgePalette";
 
 export interface ResolvedBadgeColors {
@@ -122,13 +121,4 @@ export function drawSoftBadge(
   ctx.textBaseline = "middle";
   ctx.fillText(label, dotX + dotR + gap, cy + 0.5);
   ctx.restore();
-}
-
-/** React soft badge (full-pill) — used in the edit dropdown trigger and items. */
-export function SoftBadge({ color, label }: { color: RadixColor; label: string }) {
-  return (
-    <Badge color={color} variant="soft" radius="full">
-      {label}
-    </Badge>
-  );
 }

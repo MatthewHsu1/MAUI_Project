@@ -3,7 +3,8 @@ import { Select, Text, Theme } from "@radix-ui/themes";
 import { radixThemeConfig } from "../../theme/radixTheme";
 import { createCustomCell, makeCustomCell, type EditorProps } from "./createCustomCell";
 import { radixColorByIndex, type RadixColor } from "./radixBadgePalette";
-import { drawSoftBadge, SoftBadge } from "./softBadge";
+import { drawSoftBadge } from "./softBadge";
+import { SoftBadge } from "./softBadgeView";
 
 /** One selectable enum value: numeric value, label, and an optional color override. */
 export interface EnumOption {
