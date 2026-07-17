@@ -31,9 +31,19 @@ export interface UpdateRowParams {
   value: unknown;
 }
 
-/** Optional grouping config. Absent → the grid renders flat (no header rows). */
+/**
+ * Optional grouping config. Absent → the grid renders flat (no header rows).
+ *
+ * `TGroup` MUST be a primitive (string, number, or boolean) or an otherwise
+ * stably-interned value. The engine tracks discovered/collapsed groups with
+ * `===`, `Array.includes`, and `Set`, i.e. it compares groups by identity — so
+ * if `of` returns a fresh object per call (e.g. `{ year, month }`), every row
+ * reads as a new group and collapse + dedup both silently no-op. Derive a
+ * primitive key instead (e.g. `` `${year}-${month}` ``).
+ */
 export interface GridGrouping<TRow, TGroup> {
   field: string;
+  /** Extract a row's group key — must be a primitive/stable value (see interface note). */
   of: (row: TRow) => TGroup;
   order: (g: TGroup) => number;
   label: (g: TGroup) => string;
