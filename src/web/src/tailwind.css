@@ -1,5 +1,5 @@
-/* Tailwind v4. Full import including preflight — unlike the Blazor-embedded
-   original, this app owns the whole document, so a global reset is safe. */
+/* Tailwind v4. Full import including preflight — this app owns the whole
+   document, so a global reset is safe. */
 @import "tailwindcss";
 
 @source "./**/*.{ts,tsx}";
