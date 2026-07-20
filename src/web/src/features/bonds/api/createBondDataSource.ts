@@ -1,17 +1,15 @@
 import type { BondDataSource } from "./BondDataSource";
-import { HybridBridgeSource } from "./HybridBridgeSource";
+import { StaticBondDataSource } from "./StaticBondDataSource";
 
 /**
- * Selects the live transport. Uses the HybridWebView bridge when running inside
- * the MAUI host; the HTTP API source is not built yet.
+ * Selects the bond data transport.
+ *
+ * TODO: replace with an HttpBondDataSource (used by BOTH dev and prod) once the
+ * HTTPS valuation API is available. Until then a hardcoded static list is served
+ * everywhere so the grid UI can be built and previewed without the MAUI host.
+ * The HybridWebView bridge source ({@link ./HybridBridgeSource}) stays in the
+ * tree for reference but is not selected here.
  */
 export function createBondDataSource(): BondDataSource {
-  const hasBridge =
-    typeof (globalThis as { HybridWebView?: unknown }).HybridWebView !== "undefined";
-
-  if (hasBridge) {
-    return new HybridBridgeSource();
-  }
-
-  throw new Error("HTTP bond data source is not implemented yet.");
+  return new StaticBondDataSource();
 }

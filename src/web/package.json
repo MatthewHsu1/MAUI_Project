@@ -28,6 +28,7 @@
     "react-phone-number-input": "^3.4.17",
     "react-redux": "^9.3.0",
     "react-responsive-carousel": "^3.2.23",
+    "react-router-dom": "^7.18.1",
     "tailwind-merge": "^3.6.0"
   },
   "devDependencies": {

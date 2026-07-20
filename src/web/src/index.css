@@ -3,7 +3,8 @@
    token bridges below. */
 
 /* The canvas grid sizes itself to its parent, so the layout chain from html
-   down to the grid container must have a real height. */
+   down to the grid container must have a real height. Pages follow the
+   convention: outer page div is `flex: 1; min-height: 0`. */
 html,
 body,
 #root {
@@ -14,6 +15,20 @@ body,
 #root {
   display: flex;
   flex-direction: column;
+}
+
+/* RadixThemeProvider renders Radix's <Theme>, which emits a real DOM node
+   (`div.radix-themes`) between #root and the page. Without this rule that
+   div is a non-flex, auto-height block, which breaks the #root flex chain
+   above: a page's `flex: 1` has no flex parent to size against, so the page
+   collapses to its content height and the grid canvas (which sizes to 100%
+   of its parent) renders as a sliver. Mirroring #root's flex layout here
+   onto .radix-themes keeps the chain intact. */
+#root > .radix-themes {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
 }
 
 /* shadcn -> Radix token bridge. Read via tailwind.css's `@theme inline` block. */
