@@ -64,4 +64,57 @@ describe("createNumberCell.makeCell allowOverlay", () => {
   it("allows the overlay by default", () => {
     expect(cell.makeCell(1).allowOverlay).toBe(true);
   });
+
+  it("flags the cell read-only (draws — for empty) when the overlay is disabled", () => {
+    expect(cell.makeCell(1, false).data.readOnly).toBe(true);
+  });
+
+  it("leaves an editable cell unflagged so an empty value stays blank", () => {
+    expect(cell.makeCell(1).data.readOnly).toBeUndefined();
+  });
+});
+
+function fakeCtx() {
+  const calls: string[] = [];
+  const ctx = {
+    font: "",
+    fillStyle: "" as string,
+    textBaseline: "alphabetic" as CanvasTextBaseline,
+    fillText: (t: string) => {
+      calls.push(t);
+    },
+  };
+  return { ctx: ctx as unknown as CanvasRenderingContext2D, calls, raw: ctx };
+}
+
+const theme = {
+  textDark: "#111",
+  textLight: "#999",
+  baseFontFull: "13px sans-serif",
+  cellHorizontalPadding: 8,
+};
+const rect = { x: 0, y: 0, width: 120, height: 34 };
+const drawArgs = (ctx: CanvasRenderingContext2D) =>
+  ({ ctx, rect, theme }) as unknown as Parameters<typeof cell.renderer.draw>[0];
+
+describe("createNumberCell draw", () => {
+  it("draws an em dash for a read-only empty cell", () => {
+    const { ctx, calls, raw } = fakeCtx();
+    cell.renderer.draw(drawArgs(ctx), cell.makeCell(null, false));
+    expect(calls).toEqual(["—"]);
+    expect(raw.fillStyle).toBe("#999");
+  });
+
+  it("draws nothing for an editable empty cell", () => {
+    const { ctx, calls } = fakeCtx();
+    cell.renderer.draw(drawArgs(ctx), cell.makeCell(null));
+    expect(calls).toEqual([]);
+  });
+
+  it("draws the formatted value for a non-empty cell", () => {
+    const { ctx, calls, raw } = fakeCtx();
+    cell.renderer.draw(drawArgs(ctx), cell.makeCell(42.5, false));
+    expect(calls).toEqual(["42.5"]);
+    expect(raw.fillStyle).toBe("#111");
+  });
 });

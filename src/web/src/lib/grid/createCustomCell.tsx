@@ -116,6 +116,22 @@ export function createCustomCell<TData extends { kind: string }>(
   };
 }
 
+// ─── Helper: read-only placeholder ───────────────────────────────────────────
+
+/**
+ * Paint an em dash ("—") in the muted text color at the cell's padded left edge —
+ * the placeholder a read-only cell draws for a null/empty value (an editable cell
+ * draws blank instead, inviting entry). Centralizes the look every value cell
+ * uses for a missing read-only value.
+ */
+export function drawEmptyDash<TData extends { kind: string }>(args: CellDrawArgs<TData>): void {
+  const { ctx, rect, theme } = args;
+  ctx.fillStyle = theme.textLight;
+  ctx.font = theme.baseFontFull;
+  ctx.textBaseline = "middle";
+  ctx.fillText("—", rect.x + theme.cellHorizontalPadding, rect.y + rect.height / 2);
+}
+
 // ─── Helper: build a cell payload ────────────────────────────────────────────
 
 /**

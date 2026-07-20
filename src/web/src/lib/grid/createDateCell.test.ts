@@ -29,6 +29,14 @@ describe("createDateCell.makeCell", () => {
     const cell = date.makeCell("2026-06-20T00:00:00Z", false);
     expect(cell.allowOverlay).toBe(true);
   });
+
+  it("flags the cell read-only (draws — for empty) when the overlay is disabled", () => {
+    expect(date.makeCell(null, false, false).data.readOnly).toBe(true);
+  });
+
+  it("leaves an editable cell unflagged so an empty value stays blank", () => {
+    expect(date.makeCell(null, false).data.readOnly).toBeUndefined();
+  });
 });
 
 describe("createDateCell.validate", () => {
@@ -85,5 +93,48 @@ describe("createDateCell.onPaste", () => {
       value: "2026-06-20T14:30:00.000Z",
       withTime: true,
     });
+  });
+});
+
+function fakeCtx() {
+  const calls: string[] = [];
+  const ctx = {
+    font: "",
+    fillStyle: "" as string,
+    textBaseline: "alphabetic" as CanvasTextBaseline,
+    fillText: (t: string) => {
+      calls.push(t);
+    },
+  };
+  return { ctx: ctx as unknown as CanvasRenderingContext2D, calls };
+}
+
+const theme = {
+  textDark: "#111",
+  textLight: "#999",
+  baseFontFull: "13px sans-serif",
+  cellHorizontalPadding: 8,
+};
+const rect = { x: 0, y: 0, width: 120, height: 34 };
+const drawArgs = (ctx: CanvasRenderingContext2D) =>
+  ({ ctx, rect, theme }) as unknown as Parameters<typeof date.renderer.draw>[0];
+
+describe("createDateCell draw", () => {
+  it("draws an em dash for a read-only empty cell", () => {
+    const { ctx, calls } = fakeCtx();
+    date.renderer.draw(drawArgs(ctx), date.makeCell(null, false, false));
+    expect(calls).toEqual(["—"]);
+  });
+
+  it("draws nothing for an editable empty cell", () => {
+    const { ctx, calls } = fakeCtx();
+    date.renderer.draw(drawArgs(ctx), date.makeCell(null, false));
+    expect(calls).toEqual([]);
+  });
+
+  it("draws the localized date for a non-empty cell", () => {
+    const { ctx, calls } = fakeCtx();
+    date.renderer.draw(drawArgs(ctx), date.makeCell("2026-06-20T00:00:00Z", false, false));
+    expect(calls).toEqual(["6/20/2026"]);
   });
 });

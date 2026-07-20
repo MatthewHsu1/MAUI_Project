@@ -1,14 +1,20 @@
 import type { CustomCell, CustomRenderer } from "@glideapps/glide-data-grid";
 import { Text, Theme } from "@radix-ui/themes";
-import { radixThemeConfig } from "../../theme/radixTheme";
 import { Input } from "../../components/ui/input";
-import { createCustomCell, makeCustomCell, type EditorProps } from "./createCustomCell";
+import { radixThemeConfig } from "../../theme/radixTheme";
 import { validateText, type TextValidationOptions } from "../text/textValidation";
+import {
+  createCustomCell,
+  drawEmptyDash,
+  makeCustomCell,
+  type EditorProps,
+} from "./createCustomCell";
 
 /** Cell payload. `value` is the text string, or null for an unset cell. */
 export interface TextCellData {
   kind: string;
   value: string | null;
+  readOnly?: boolean;
 }
 
 export interface TextCell {
@@ -66,7 +72,10 @@ export function createTextCell({
   const renderer = createCustomCell<TextCellData>({
     kind,
     draw: (args, data) => {
-      if (data.value == null || data.value === "") return;
+      if (data.value == null || data.value === "") {
+        if (data.readOnly) drawEmptyDash(args);
+        return;
+      }
 
       const { ctx, rect, theme } = args;
       ctx.fillStyle = theme.textDark;
@@ -82,7 +91,11 @@ export function createTextCell({
   });
 
   const makeCell = (value: string | null, allowOverlay = true): CustomCell<TextCellData> =>
-    makeCustomCell({ kind, value }, value ?? "", allowOverlay);
+    makeCustomCell(
+      { kind, value, ...(allowOverlay ? {} : { readOnly: true }) },
+      value ?? "",
+      allowOverlay,
+    );
 
   const validate = (cell: CustomCell<TextCellData>): boolean =>
     validateText(cell.data.value ?? "", validation).valid;

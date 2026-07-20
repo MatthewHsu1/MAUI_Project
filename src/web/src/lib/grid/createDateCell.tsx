@@ -12,7 +12,12 @@ import {
   isValidDateValue,
   parseDatePaste,
 } from "../date/dateUtils";
-import { createCustomCell, makeCustomCell, type EditorProps } from "./createCustomCell";
+import {
+  createCustomCell,
+  drawEmptyDash,
+  makeCustomCell,
+  type EditorProps,
+} from "./createCustomCell";
 
 /** How many years before/after the current year the calendar's year dropdown spans. */
 const CALENDAR_YEARS_BACK = 500;
@@ -23,6 +28,7 @@ export interface DateCellData {
   kind: string;
   value: string | null;
   withTime: boolean;
+  readOnly?: boolean;
 }
 
 export interface DateCell {
@@ -111,7 +117,10 @@ export function createDateCell({
   const renderer = createCustomCell<DateCellData>({
     kind,
     draw: (args, data) => {
-      if (data.value == null || data.value === "") return;
+      if (data.value == null || data.value === "") {
+        if (data.readOnly) drawEmptyDash(args);
+        return;
+      }
 
       const { ctx, rect, theme } = args;
       ctx.fillStyle = theme.textDark;
@@ -139,7 +148,11 @@ export function createDateCell({
     withTime: boolean,
     allowOverlay = true,
   ): CustomCell<DateCellData> =>
-    makeCustomCell({ kind, value, withTime }, value ?? "", allowOverlay);
+    makeCustomCell(
+      { kind, value, withTime, ...(allowOverlay ? {} : { readOnly: true }) },
+      value ?? "",
+      allowOverlay,
+    );
 
   const validate = (cell: CustomCell<DateCellData>): boolean =>
     isValidDateValue(cell.data.value, nullable);

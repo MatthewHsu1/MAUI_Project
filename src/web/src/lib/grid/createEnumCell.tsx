@@ -1,7 +1,12 @@
 import type { CustomCell, CustomRenderer } from "@glideapps/glide-data-grid";
 import { Select, Text, Theme } from "@radix-ui/themes";
 import { radixThemeConfig } from "../../theme/radixTheme";
-import { createCustomCell, makeCustomCell, type EditorProps } from "./createCustomCell";
+import {
+  createCustomCell,
+  drawEmptyDash,
+  makeCustomCell,
+  type EditorProps,
+} from "./createCustomCell";
 import { radixColorByIndex, type RadixColor } from "./radixBadgePalette";
 import { drawSoftBadge } from "./softBadge";
 import { SoftBadge } from "./softBadgeView";
@@ -18,6 +23,7 @@ export interface EnumOption {
 export interface EnumCellData {
   kind: string;
   value: number | null;
+  readOnly?: boolean;
 }
 
 interface ResolvedOption {
@@ -27,7 +33,12 @@ interface ResolvedOption {
 
 export interface EnumCell {
   renderer: CustomRenderer<CustomCell<EnumCellData>>;
-  makeCell: (value: number | null) => CustomCell<EnumCellData>;
+  /**
+   * Build a cell for `value`. Pass `allowOverlay: false` for a read-only column:
+   * the badge still renders, the `Select` editor never opens, and an empty value
+   * draws as "—" instead of blank.
+   */
+  makeCell: (value: number | null, allowOverlay?: boolean) => CustomCell<EnumCellData>;
   /** Resolved color for a value (override or index default). Exposed for tests/reuse. */
   colorOf: (value: number) => RadixColor;
 }
@@ -97,7 +108,10 @@ export function createEnumCell({
   const renderer = createCustomCell<EnumCellData>({
     kind,
     draw: (args, data) => {
-      if (data.value == null) return;
+      if (data.value == null) {
+        if (data.readOnly) drawEmptyDash(args);
+        return;
+      }
 
       const { label, color } = lookup(data.value);
       // Pass the grid's base font so drawSoftBadge measures with the same font it
@@ -107,8 +121,12 @@ export function createEnumCell({
     editor: Editor,
   });
 
-  const makeCell = (value: number | null): CustomCell<EnumCellData> =>
-    makeCustomCell({ kind, value }, value == null ? "" : lookup(value).label);
+  const makeCell = (value: number | null, allowOverlay = true): CustomCell<EnumCellData> =>
+    makeCustomCell(
+      { kind, value, ...(allowOverlay ? {} : { readOnly: true }) },
+      value == null ? "" : lookup(value).label,
+      allowOverlay,
+    );
 
   return { renderer, makeCell, colorOf: (value) => lookup(value).color };
 }

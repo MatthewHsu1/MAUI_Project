@@ -1,19 +1,25 @@
 import type { CustomCell, CustomRenderer } from "@glideapps/glide-data-grid";
 import { Theme } from "@radix-ui/themes";
-import { radixThemeConfig } from "../../theme/radixTheme";
 import { NumericInput } from "../../components/ui/numericInput";
-import { createCustomCell, makeCustomCell, type EditorProps } from "./createCustomCell";
+import { radixThemeConfig } from "../../theme/radixTheme";
 import {
   formatNumberDisplay,
   isValueInRange,
   parseNumberPaste,
   type NumberFormat,
 } from "../number/numberUtils";
+import {
+  createCustomCell,
+  drawEmptyDash,
+  makeCustomCell,
+  type EditorProps,
+} from "./createCustomCell";
 
 /** Cell payload. `value` is a JS number, or null for an unset cell. */
 export interface NumberCellData {
   kind: string;
   value: number | null;
+  readOnly?: boolean;
 }
 
 export interface NumberCell {
@@ -72,7 +78,10 @@ export function createNumberCell({
   const renderer = createCustomCell<NumberCellData>({
     kind,
     draw: (args, data) => {
-      if (data.value == null) return;
+      if (data.value == null) {
+        if (data.readOnly) drawEmptyDash(args);
+        return;
+      }
 
       const { ctx, rect, theme } = args;
       ctx.fillStyle = theme.textDark;
@@ -95,7 +104,11 @@ export function createNumberCell({
   });
 
   const makeCell = (value: number | null, allowOverlay = true): CustomCell<NumberCellData> =>
-    makeCustomCell({ kind, value }, value == null ? "" : String(value), allowOverlay);
+    makeCustomCell(
+      { kind, value, ...(allowOverlay ? {} : { readOnly: true }) },
+      value == null ? "" : String(value),
+      allowOverlay,
+    );
 
   const validate = (cell: CustomCell<NumberCellData>): boolean => {
     const v = cell.data.value;

@@ -3,13 +3,19 @@ import { Text, Theme } from "@radix-ui/themes";
 import PhoneInput, { type Country } from "react-phone-number-input";
 import "react-phone-number-input/style.css";
 import { radixThemeConfig } from "../../theme/radixTheme";
-import { createCustomCell, makeCustomCell, type EditorProps } from "./createCustomCell";
 import { formatPhoneDisplay, isValidPhoneValue, parsePhonePaste } from "../phone/phoneUtils";
+import {
+  createCustomCell,
+  drawEmptyDash,
+  makeCustomCell,
+  type EditorProps,
+} from "./createCustomCell";
 
 /** Cell payload. `value` is a canonical E.164 string, or null for an unset cell. */
 export interface PhoneCellData {
   kind: string;
   value: string | null;
+  readOnly?: boolean;
 }
 
 export interface PhoneCell {
@@ -75,7 +81,10 @@ export function createPhoneCell({
   const renderer = createCustomCell<PhoneCellData>({
     kind,
     draw: (args, data) => {
-      if (data.value == null || data.value === "") return;
+      if (data.value == null || data.value === "") {
+        if (data.readOnly) drawEmptyDash(args);
+        return;
+      }
 
       const { ctx, rect, theme } = args;
       ctx.fillStyle = theme.textDark;
@@ -99,7 +108,11 @@ export function createPhoneCell({
   });
 
   const makeCell = (value: string | null, allowOverlay = true): CustomCell<PhoneCellData> =>
-    makeCustomCell({ kind, value }, value ?? "", allowOverlay);
+    makeCustomCell(
+      { kind, value, ...(allowOverlay ? {} : { readOnly: true }) },
+      value ?? "",
+      allowOverlay,
+    );
 
   const validate = (cell: CustomCell<PhoneCellData>): boolean =>
     isValidPhoneValue(cell.data.value, nullable);

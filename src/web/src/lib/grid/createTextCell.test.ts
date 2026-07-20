@@ -51,4 +51,53 @@ describe("createTextCell.makeCell allowOverlay", () => {
   it("allows the overlay by default", () => {
     expect(cell.makeCell("a").allowOverlay).toBe(true);
   });
+  it("flags the cell read-only (draws — for empty) when the overlay is disabled", () => {
+    expect(cell.makeCell(null, false).data.readOnly).toBe(true);
+  });
+  it("leaves an editable cell unflagged so an empty value stays blank", () => {
+    expect(cell.makeCell("a").data.readOnly).toBeUndefined();
+  });
+});
+
+function fakeCtx() {
+  const calls: string[] = [];
+  const ctx = {
+    font: "",
+    fillStyle: "" as string,
+    textBaseline: "alphabetic" as CanvasTextBaseline,
+    fillText: (t: string) => {
+      calls.push(t);
+    },
+  };
+  return { ctx: ctx as unknown as CanvasRenderingContext2D, calls };
+}
+
+const theme = {
+  textDark: "#111",
+  textLight: "#999",
+  baseFontFull: "13px sans-serif",
+  cellHorizontalPadding: 8,
+};
+const rect = { x: 0, y: 0, width: 120, height: 34 };
+const drawArgs = (ctx: CanvasRenderingContext2D) =>
+  ({ ctx, rect, theme }) as unknown as Parameters<typeof cell.renderer.draw>[0];
+
+describe("createTextCell draw", () => {
+  it("draws an em dash for a read-only empty cell", () => {
+    const { ctx, calls } = fakeCtx();
+    cell.renderer.draw(drawArgs(ctx), cell.makeCell(null, false));
+    expect(calls).toEqual(["—"]);
+  });
+
+  it("draws nothing for an editable empty cell", () => {
+    const { ctx, calls } = fakeCtx();
+    cell.renderer.draw(drawArgs(ctx), cell.makeCell(null));
+    expect(calls).toEqual([]);
+  });
+
+  it("draws the text for a non-empty cell", () => {
+    const { ctx, calls } = fakeCtx();
+    cell.renderer.draw(drawArgs(ctx), cell.makeCell("hi", false));
+    expect(calls).toEqual(["hi"]);
+  });
 });
