@@ -12,6 +12,10 @@ dist
 dist-ssr
 *.local
 
+# @tanstack/router-generator writes temp files here before renaming
+# src/routeTree.gen.ts into place; a killed build leaves them behind.
+.tanstack/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

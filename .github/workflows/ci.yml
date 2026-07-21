@@ -63,6 +63,13 @@ jobs:
       - name: Build
         run: npm run build
 
+      # src/routeTree.gen.ts is generated but committed, and carries
+      # @ts-nocheck — so a deleted route file with a stale tree still type
+      # checks. The build above regenerates it; this fails if that produced
+      # a diff, which is the only signal that the committed tree is stale.
+      - name: Generated route tree is up to date
+        run: git diff --exit-code -- src/routeTree.gen.ts
+
   # Builds the MAUI host (src/AppName.Maui) per target platform. Each platform's
   # SDK is only available on certain OSes: iOS and MacCatalyst require Xcode on a
   # macOS runner, Windows (WinUI) requires the Windows SDK on a windows runner, and
