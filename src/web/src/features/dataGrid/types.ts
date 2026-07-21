@@ -1,4 +1,4 @@
-import type { Middleware, Reducer } from "@reduxjs/toolkit";
+import type { Reducer } from "@reduxjs/toolkit";
 import type { CellRegistry } from "../../lib/grid/cellRegistry";
 import type { Boundary } from "./displayModel";
 
@@ -119,7 +119,8 @@ export interface GridInstance<TRow, TGroup> {
   selectRoot: (state: unknown) => GridSliceState<TRow, TGroup>;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   actions: Record<string, (...args: any[]) => { type: string; payload?: unknown }>;
-  middleware: Middleware;
+  /** Removes this instance's effects from the shared grid listener. */
+  stopEffects: () => void;
   thunks: {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     fetchWindow: (arg: { skip: number; take: number }) => any;

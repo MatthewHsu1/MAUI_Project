@@ -1,3 +1,4 @@
+import { injectSlice } from "../../app/rootReducer";
 import { createGridInstance } from "../dataGrid/store/createGridInstance";
 import { localStorageColumnsAdapter } from "../dataGrid/store/localStorageColumnsAdapter";
 import type {
@@ -5,6 +6,7 @@ import type {
   FetchWindowParams,
   FetchWindowResult,
   GridDescriptor,
+  GridSliceState,
   UpdateRowParams,
 } from "../dataGrid/types";
 import type { BondDataSource } from "./api/BondDataSource";
@@ -133,3 +135,14 @@ export const bondGridDescriptor: GridDescriptor<BondRow, never> = {
 };
 
 export const bondGrid = createGridInstance(bondGridDescriptor);
+
+// Claim this grid's slot in RootState. Declaring it here rather than in
+// app/rootReducer keeps registration with the grid it belongs to, and makes the
+// key a literal so no cast is needed to satisfy the reducer map's typing.
+declare module "../../app/rootReducer" {
+  interface LazyLoadedSlices {
+    [GRID_NAME]: GridSliceState<BondRow, never>;
+  }
+}
+
+injectSlice({ reducerPath: GRID_NAME, reducer: bondGrid.reducer });

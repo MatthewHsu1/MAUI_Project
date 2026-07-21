@@ -39,9 +39,10 @@ describe("createGridInstance", () => {
     expect(inst.selectRoot({ demo: sub }).columns.order).toEqual(["id"]);
   });
 
-  it("exposes listener middleware and a loadColumns thunk", () => {
+  it("exposes an effects teardown and a loadColumns thunk", () => {
     const inst = createGridInstance(descriptor);
-    expect(typeof inst.middleware).toBe("function");
+    expect(typeof inst.stopEffects).toBe("function");
     expect(typeof inst.thunks.loadColumns).toBe("function");
+    inst.stopEffects();
   });
 });

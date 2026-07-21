@@ -2,7 +2,7 @@
 import { combineReducers } from "@reduxjs/toolkit";
 import type { GridDescriptor, GridInstance, GridSliceState } from "../types";
 import { createColumnsSlice } from "./columnsSlice";
-import { createEffectsMiddleware } from "./effects";
+import { registerEffects } from "./effects";
 import type { GridEffectContext } from "./effects/types";
 import { createEditsSlice, createSaveCellEdit } from "./editsSlice";
 import { createGridDataSlice } from "./gridDataSlice";
@@ -49,7 +49,7 @@ export function createGridInstance<TRow, TGroup>(
 
   const selectRoot = (s: unknown) => (s as Record<string, GridSliceState<TRow, TGroup>>)[name];
 
-  // Listener middleware: register every GridEffect for this instance.
+  // Register every GridEffect for this instance on the shared grid listener.
   const ctx: GridEffectContext<TRow, TGroup> = {
     name,
     descriptor,
@@ -63,7 +63,7 @@ export function createGridInstance<TRow, TGroup>(
     },
   };
 
-  const middleware = createEffectsMiddleware(ctx);
+  const stopEffects = registerEffects(ctx);
 
   return {
     descriptor,
@@ -77,7 +77,7 @@ export function createGridInstance<TRow, TGroup>(
       ...edits.actions,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } as any,
-    middleware,
+    stopEffects,
     thunks: {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       fetchWindow: gridData.fetchWindow as any,

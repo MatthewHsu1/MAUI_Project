@@ -1,7 +1,9 @@
 import { configureStore } from "@reduxjs/toolkit";
 import { describe, expect, it } from "vitest";
+import { rootReducer } from "../../app/rootReducer";
+import { appListener } from "../../app/listener";
 import type { BondDataSource } from "./api/BondDataSource";
-import { bondGrid, createBondGridApi } from "./bondGrid";
+import { bondGrid, createBondGridApi, GRID_NAME } from "./bondGrid";
 import type { ConversionValuation } from "./types";
 
 const sample: ConversionValuation[] = [
@@ -112,11 +114,19 @@ describe("createBondGridApi", () => {
 });
 
 describe("bondGrid instance", () => {
+  it("injects itself into the root reducer on import, with no wiring in app/", () => {
+    const state = rootReducer(undefined, { type: "@@init" });
+    expect(bondGrid.selectRoot(state).columns.order).toEqual(
+      bondGrid.descriptor.columns.defaultOrder,
+    );
+    expect(GRID_NAME).toBe(bondGrid.descriptor.name);
+  });
+
   it("populates total and rows through the store via the static source", async () => {
     const store = configureStore({
       reducer: { [bondGrid.descriptor.name]: bondGrid.reducer },
       middleware: (getDefault) =>
-        getDefault({ serializableCheck: false }).concat(bondGrid.middleware),
+        getDefault({ serializableCheck: false }).concat(appListener.middleware),
     });
     await store.dispatch(bondGrid.thunks.fetchWindow({ skip: 0, take: 100 }));
     const state = bondGrid.selectRoot(store.getState());

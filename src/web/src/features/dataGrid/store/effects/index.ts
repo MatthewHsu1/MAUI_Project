@@ -1,4 +1,4 @@
-import { createListenerMiddleware, type Middleware } from "@reduxjs/toolkit";
+import { startAppListening } from "../../../../app/listener";
 import type { GridEffect, GridEffectContext } from "./types";
 import { columnsPersistenceEffect } from "./columnsPersistenceEffect";
 
@@ -6,20 +6,30 @@ import { columnsPersistenceEffect } from "./columnsPersistenceEffect";
 export const gridEffects: GridEffect[] = [columnsPersistenceEffect];
 
 /**
- * Build the listener middleware for one grid instance: create the listener
- * middleware and register every gridEffect against this instance's context.
- * Keeps the effect-wiring concern owned by effects/, the way each slice owns
- * its reducer/actions.
+ * Register every gridEffect for one grid instance against the app-wide listener
+ * middleware. Keeps the effect-wiring concern owned by effects/, the way each
+ * slice owns its reducer/actions.
+ *
+ * Returns a function that removes this instance's listeners again. The store
+ * never needs it — grids live as long as the app — but it keeps tests that
+ * build throwaway instances from leaking listeners into later tests.
  */
-export function createEffectsMiddleware<TRow, TGroup>(
-  ctx: GridEffectContext<TRow, TGroup>,
-): Middleware {
-  const listenerMiddleware = createListenerMiddleware();
+export function registerEffects<TRow, TGroup>(ctx: GridEffectContext<TRow, TGroup>): () => void {
+  const unsubscribers: Array<() => void> = [];
 
-  for (const effect of gridEffects) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    effect(ctx, listenerMiddleware.startListening as any);
-  }
+  // GridEffect returns void so one effect may register several listeners; wrap
+  // startListening to collect every unsubscribe it hands back.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const startListening = (options: any) => {
+    const unsubscribe = startAppListening(options);
+    unsubscribers.push(unsubscribe);
+    return unsubscribe;
+  };
 
-  return listenerMiddleware.middleware;
+  for (const effect of gridEffects) effect(ctx, startListening);
+
+  return () => {
+    for (const unsubscribe of unsubscribers) unsubscribe();
+    unsubscribers.length = 0;
+  };
 }
