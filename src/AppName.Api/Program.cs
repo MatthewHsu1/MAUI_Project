@@ -1,6 +1,7 @@
 using AppName.Api.Authentication;
 using AppName.Api.Cors;
 using AppName.Api.Endpoints;
+using AppName.Api.OpenApi;
 using AppName.Application;
 using AppName.Infrastructure;
 using Scalar.AspNetCore;
@@ -14,7 +15,10 @@ builder.Services.AddApplication().AddInfrastructure(builder.Configuration);
 
 // --- OpenAPI -----------------------------------------------------------
 
-builder.Services.AddOpenApi();
+builder.Services.AddOpenApi(options =>
+{
+    options.AddSchemaTransformer<DecimalSchemaTransformer>();
+});
 
 // --- Auth (JWT bearer, dev stub) ----------------------------------------
 

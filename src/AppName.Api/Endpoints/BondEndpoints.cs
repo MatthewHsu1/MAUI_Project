@@ -1,4 +1,6 @@
+using AppName.Application.Dtos;
 using AppName.Application.UseCases.Bonds;
+using Microsoft.AspNetCore.Http.HttpResults;
 
 namespace AppName.Api.Endpoints;
 
@@ -13,34 +15,34 @@ public static class BondEndpoints
     /// </summary>
     public static RouteGroupBuilder MapBondEndpoints(this RouteGroupBuilder group)
     {
-        group.MapGet("/valuations", async (GetValuationsUseCase useCase, CancellationToken ct) =>
+        group.MapGet("/valuations", async Task<Ok<IReadOnlyList<ConversionValuationDto>>> (GetValuationsUseCase useCase, CancellationToken ct) =>
         {
             var valuations = await useCase.ExecuteAsync(ct);
-            return Results.Ok(valuations);
+            return TypedResults.Ok(valuations);
         })
         .RequireAuthorization()
         .WithName("GetValuations");
 
-        group.MapGet("/valuations/{symbol}", async (string symbol, GetConversionValuationUseCase useCase, CancellationToken ct) =>
+        group.MapGet("/valuations/{symbol}", async Task<Results<Ok<ConversionValuationDto>, NotFound>> (string symbol, GetConversionValuationUseCase useCase, CancellationToken ct) =>
         {
             var valuation = await useCase.ExecuteAsync(symbol, ct);
-            return valuation is null ? Results.NotFound() : Results.Ok(valuation);
+            return valuation is null ? TypedResults.NotFound() : TypedResults.Ok(valuation);
         })
         .RequireAuthorization()
         .WithName("GetValuationBySymbol");
 
-        group.MapPost("/valuations/refresh", async (IRefreshAllBondsUseCase useCase, CancellationToken ct) =>
+        group.MapPost("/valuations/refresh", async Task<Accepted> (IRefreshAllBondsUseCase useCase, CancellationToken ct) =>
         {
             await useCase.ExecuteAsync(ct);
-            return Results.Accepted();
+            return TypedResults.Accepted((string?)null);
         })
         .RequireAuthorization()
         .WithName("RefreshAllValuations");
 
-        group.MapPost("/bonds/{symbol}/refresh", async (string symbol, RefreshBondDataUseCase useCase, CancellationToken ct) =>
+        group.MapPost("/bonds/{symbol}/refresh", async Task<Accepted> (string symbol, RefreshBondDataUseCase useCase, CancellationToken ct) =>
         {
             await useCase.ExecuteAsync(symbol, ct);
-            return Results.Accepted();
+            return TypedResults.Accepted((string?)null);
         })
         .RequireAuthorization()
         .WithName("RefreshBondData");

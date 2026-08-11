@@ -1,0 +1,13 @@
+/* Tailwind v4. Full import including preflight — this app owns the whole
+   document, so a global reset is safe. */
+@import "tailwindcss";
+
+@source "./**/*.{ts,tsx}";
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+}

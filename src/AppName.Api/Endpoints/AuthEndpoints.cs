@@ -2,6 +2,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text.Json.Serialization;
 using AppName.Api.Authentication;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.IdentityModel.Tokens;
 
 namespace AppName.Api.Endpoints;
@@ -20,7 +21,7 @@ public static class AuthEndpoints
         // and MAUI clients can obtain a bearer token while developing locally.
         // This must be replaced by a real identity provider (e.g. OIDC/Entra ID)
         // before any non-local deployment — there is no credential check here.
-        group.MapPost("/auth/token", (IConfiguration config) =>
+        group.MapPost("/auth/token", Ok<TokenResponse> (IConfiguration config) =>
         {
             var jwt = JwtSettings.FromConfiguration(config);
 
@@ -45,7 +46,7 @@ public static class AuthEndpoints
 
             var accessToken = new JwtSecurityTokenHandler().WriteToken(token);
 
-            return Results.Ok(new TokenResponse(accessToken, (int)TimeSpan.FromHours(1).TotalSeconds));
+            return TypedResults.Ok(new TokenResponse(accessToken, (int)TimeSpan.FromHours(1).TotalSeconds));
         })
         .AllowAnonymous()
         .WithName("MintDevToken");
@@ -59,7 +60,7 @@ public static class AuthEndpoints
     /// </summary>
     /// <param name="AccessToken">The minted bearer token.</param>
     /// <param name="ExpiresIn">Token lifetime in seconds.</param>
-    private sealed record TokenResponse(
+    internal sealed record TokenResponse(
         [property: JsonPropertyName("access_token")] string AccessToken,
         [property: JsonPropertyName("expires_in")] int ExpiresIn);
 }

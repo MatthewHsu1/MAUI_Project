@@ -9,5 +9,12 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    <!--
+      glide-data-grid renders every cell overlay editor into this element, and it
+      looks it up by id. Without it the grid logs "Cannot open Data Grid overlay
+      editor, because portal not found" and NO cell can be edited. It must stay
+      the last child of <body>, after #root, so an editor draws above the grid.
+    -->
+    <div id="portal" style="position: fixed; left: 0; top: 0; z-index: 9999"></div>
   </body>
 </html>
