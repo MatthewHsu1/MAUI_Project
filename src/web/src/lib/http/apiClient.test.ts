@@ -267,9 +267,7 @@ describe("apiClient cancellation and timeout", () => {
   });
 
   it("maps a timeout to ApiError with code 'timeout'", async () => {
-    const error = await apiClient
-      .get("/api/valuations", { timeout: 20 })
-      .catch((e: unknown) => e);
+    const error = await apiClient.get("/api/valuations", { timeout: 20 }).catch((e: unknown) => e);
 
     expect(error).toBeInstanceOf(ApiError);
     expect(error).toMatchObject({ status: 0, code: "timeout" });
