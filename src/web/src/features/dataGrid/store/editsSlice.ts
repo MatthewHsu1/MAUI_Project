@@ -1,94 +1,53 @@
 import { createSlice, type PayloadAction } from "@reduxjs/toolkit";
-import type { EditState, GridDescriptor, GridSliceState } from "../types";
+import type { EditError, EditState } from "../types";
 
+/**
+ * `lastError` is the banner over the grid, so it needs a way in AND two ways
+ * out — and the two ways out are not the same, which is why they are two
+ * actions and not one.
+ *
+ * - `editFail` is the way in: `useCellRenderer` dispatches it when the
+ *   collection's transaction rejects. It names the cell as well as the message.
+ *
+ * - `editSucceeded` is the CONDITIONAL way out, dispatched when a save
+ *   persists. It clears the banner only when the cell that succeeded is the
+ *   cell that failed. An unconditional clear here would let a success on one
+ *   cell erase another cell's failure — two overlapping saves with mixed
+ *   outcomes are enough — and the user would never learn the failed save did
+ *   not land. Note that a save that succeeds while no error is showing is a
+ *   no-op, which is what it should be.
+ *
+ * - `editErrorCleared` is the UNCONDITIONAL way out, dispatched by
+ *   `GridStatusBar`'s dismiss. Dismiss means "I am done with this message",
+ *   whatever cell it came from, so it carries no cell and matches nothing.
+ *   Clearing on success alone would leave a user who gives up editing staring
+ *   at the message for the life of the page; a dismiss is the only exit that
+ *   does not require another edit.
+ *
+ * `editBegin` / `editResolve` used to track an in-flight edit per cell so the
+ * renderer could grey it. `data/editOverlay.ts` holds the optimistic value and
+ * `useCellRenderer` reads its `isPending` instead — always in step with the
+ * save, and with no key to keep aligned — so the `pending` map and both actions
+ * are gone rather than left without a dispatcher. The `cell` on `lastError` is
+ * NOT that map coming back: it is one string on the one error the banner is
+ * already showing, not a record of every edit in flight.
+ */
 export function createEditsSlice(name: string) {
-  const initialState: EditState = { pending: {}, lastError: null };
+  const initialState: EditState = { lastError: null };
   const slice = createSlice({
     name: `${name}/edits`,
     initialState,
     reducers: {
-      editBegin(state, action: PayloadAction<{ key: string; prev: unknown }>) {
-        state.pending[action.payload.key] = { prev: action.payload.prev };
+      editFail(state, action: PayloadAction<EditError>) {
+        state.lastError = action.payload;
+      },
+      editSucceeded(state, action: PayloadAction<string>) {
+        if (state.lastError?.cell === action.payload) state.lastError = null;
+      },
+      editErrorCleared(state) {
         state.lastError = null;
-      },
-      editResolve(state, action: PayloadAction<string>) {
-        delete state.pending[action.payload];
-      },
-      editFail(state, action: PayloadAction<{ key: string; message: string }>) {
-        delete state.pending[action.payload.key];
-        state.lastError = action.payload.message;
       },
     },
   });
   return { reducer: slice.reducer, actions: slice.actions };
-}
-
-interface SaveCellEditDeps<TRow, TGroup> {
-  name: string;
-  descriptor: GridDescriptor<TRow, TGroup>;
-  pageSize: number;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  gridDataActions: { applyEdit: (p: any) => any; invalidate: () => any };
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  groupsActions: { resetBoundaries: () => any };
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  editsActions: {
-    editBegin: (p: any) => any;
-    editResolve: (p: any) => any;
-    editFail: (p: any) => any;
-  };
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  fetchWindow: (arg: { skip: number; take: number }) => any;
-}
-
-/**
- * Optimistically apply a cell edit, persist via the descriptor's api, roll back
- * on failure. When the edited field is the grouping field and its group order
- * changes, the row moves groups → re-page from the top.
- */
-export function createSaveCellEdit<TRow, TGroup>(deps: SaveCellEditDeps<TRow, TGroup>) {
-  const { name, descriptor, pageSize, gridDataActions, groupsActions, editsActions, fetchWindow } =
-    deps;
-
-  return function saveCellEdit(args: { dataIndex: number; field: string; value: unknown }) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return async (dispatch: any, getState: () => unknown) => {
-      const { dataIndex, field, value } = args;
-      const root = (getState() as Record<string, GridSliceState<TRow, TGroup>>)[name];
-      const row = root.gridData.byIndex[dataIndex];
-      if (!row) return;
-
-      const key = `${descriptor.rowKey(row)}:${field}`;
-      const prev = (row as unknown as Record<string, unknown>)[field];
-
-      dispatch(gridDataActions.applyEdit({ dataIndex, field, value }));
-      dispatch(editsActions.editBegin({ key, prev }));
-
-      const res = await descriptor.api.updateRow({ id: descriptor.rowKey(row), field, value });
-
-      if (res.ok) {
-        dispatch(editsActions.editResolve(key));
-        const grouping = descriptor.grouping;
-        if (
-          grouping &&
-          fieldIsGroupKey(descriptor, field) &&
-          grouping.order(prev as TGroup) !== grouping.order(value as TGroup)
-        ) {
-          dispatch(groupsActions.resetBoundaries());
-          dispatch(gridDataActions.invalidate());
-          dispatch(fetchWindow({ skip: 0, take: pageSize }));
-        }
-      } else {
-        dispatch(gridDataActions.applyEdit({ dataIndex, field, value: prev }));
-        dispatch(editsActions.editFail({ key, message: `Failed to save ${field}` }));
-      }
-    };
-  };
-}
-
-function fieldIsGroupKey<TRow, TGroup>(
-  descriptor: GridDescriptor<TRow, TGroup>,
-  field: string,
-): boolean {
-  return descriptor.grouping?.field === field;
 }

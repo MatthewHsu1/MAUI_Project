@@ -14,35 +14,41 @@ const descriptor = {
     defaultOrder: ["id"],
   },
   api: {
-    fetchWindow: async () => ({ rows: [], total: 0, precedingGroupKey: null }),
+    fetchRows: async () => [],
+    fetchCount: async () => 0,
+    fetchRow: async () => null,
     updateRow: async () => ({ ok: true }),
   },
   cells: { makeCell: () => ({}) as never, customRenderers: [], validateCell: () => true },
 } as unknown as GridDescriptor<Row, number>;
 
+const makeInstance = () => createGridInstance(descriptor);
+
 describe("createGridInstance", () => {
-  it("produces a combined reducer with all five sub-slices", () => {
-    const inst = createGridInstance(descriptor);
+  it("reduces only client-owned state — rows live in the row store", () => {
+    const inst = makeInstance();
     const state = inst.reducer(undefined, { type: "@@init" });
-    expect(Object.keys(state).sort()).toEqual([
-      "columns",
-      "edits",
-      "gridData",
-      "groups",
-      "selection",
-    ]);
+    expect(Object.keys(state).sort()).toEqual(["columns", "edits", "groups", "selection"]);
   });
 
   it("selectRoot reads the namespaced slice from a full store state", () => {
-    const inst = createGridInstance(descriptor);
+    const inst = makeInstance();
     const sub = inst.reducer(undefined, { type: "@@init" });
     expect(inst.selectRoot({ demo: sub }).columns.order).toEqual(["id"]);
   });
 
   it("exposes an effects teardown and a loadColumns thunk", () => {
-    const inst = createGridInstance(descriptor);
+    const inst = makeInstance();
     expect(typeof inst.stopEffects).toBe("function");
     expect(typeof inst.thunks.loadColumns).toBe("function");
     inst.stopEffects();
+  });
+
+  it("starts with an empty store cell, so a push before any grid mounts is dropped", () => {
+    // The instance is created at module scope, long before a grid mounts, and
+    // `useGridData` is what fills this cell. `data/sync/useRowSync.ts` relies on
+    // the null: a push that arrives first has nothing on screen to correct.
+    const inst = makeInstance();
+    expect(inst.storeRef.current).toBeNull();
   });
 });

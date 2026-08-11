@@ -17,7 +17,6 @@ function makeDescriptor(name: string, saveColumns: (columns: unknown) => Promise
       defaultOrder: ["id"],
     },
     api: {
-      fetchWindow: async () => ({ rows: [], total: 0, precedingGroupKey: null }),
       updateRow: async () => ({ ok: true }),
       saveColumns,
     },
@@ -25,7 +24,7 @@ function makeDescriptor(name: string, saveColumns: (columns: unknown) => Promise
   } as unknown as GridDescriptor<Row, number>;
 }
 
-function makeStore(name: string, reducer: Reducer<GridSliceState<Row, number>>) {
+function makeStore(name: string, reducer: Reducer<GridSliceState<number, number>>) {
   return configureStore({
     reducer: { [name]: reducer },
     middleware: (getDefault) =>

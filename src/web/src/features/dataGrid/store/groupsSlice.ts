@@ -1,27 +1,19 @@
 import { createSlice, type PayloadAction } from "@reduxjs/toolkit";
-import { detectBoundaries, type Boundary } from "../displayModel";
-import type { GridDescriptor, GroupsState } from "../types";
+import type { GroupsState } from "../types";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type FetchWindowThunk = { fulfilled: { type: string; match: (a: any) => boolean } };
-
-export function createGroupsSlice<TRow, TGroup>(
-  name: string,
-  descriptor: GridDescriptor<TRow, TGroup>,
-  fetchWindow: FetchWindowThunk,
-) {
+/**
+ * Client-owned grouping state: what the user has collapsed, how they sorted,
+ * and which groups they have encountered.
+ *
+ * It holds no rows and no boundaries. Boundaries are derived from the loaded
+ * windows in `useDisplayModel`; nothing here has to be reset when rows change.
+ */
+export function createGroupsSlice<TGroup>(name: string) {
   const initialState: GroupsState<TGroup> = {
-    boundaries: [],
     discoveredGroups: [],
     collapsedGroups: [],
     sort: null,
   };
-
-  function mergeBoundary(list: Boundary<TGroup>[], b: Boundary<TGroup>) {
-    const existing = list.find((x) => x.dataIndex === b.dataIndex);
-    if (existing) existing.group = b.group;
-    else list.push(b);
-  }
 
   const slice = createSlice({
     name: `${name}/groups`,
@@ -37,31 +29,20 @@ export function createGroupsSlice<TRow, TGroup>(
       },
       setSort(state, action: PayloadAction<GroupsState<TGroup>["sort"]>) {
         state.sort = action.payload;
-        state.boundaries = [];
       },
-      resetBoundaries(state) {
-        state.boundaries = [];
-      },
-    },
-    extraReducers: (b) => {
-      const grouping = descriptor.grouping;
-      if (!grouping) return;
-      b.addCase(
-        fetchWindow.fulfilled as never,
-        (
-          state,
-          action: PayloadAction<{ skip: number; rows: TRow[]; precedingGroupKey: TGroup | null }>,
-        ) => {
-          const { skip, rows, precedingGroupKey } = action.payload;
-          const found = detectBoundaries(rows, precedingGroupKey, skip, grouping.of);
-          found.forEach((bd) => mergeBoundary(state.boundaries as Boundary<TGroup>[], bd));
-          for (const r of rows) {
-            const g = grouping.of(r);
-            if (!(state.discoveredGroups as TGroup[]).includes(g))
-              (state.discoveredGroups as TGroup[]).push(g);
+      /**
+       * Record groups seen in a loaded window. Monotonic on purpose: a group the
+       * user collapses is excluded from every later window by the server, so
+       * without this memory its header — and the only way to expand it again —
+       * would disappear.
+       */
+      groupsDiscovered(state, action: PayloadAction<TGroup[]>) {
+        for (const g of action.payload) {
+          if (!(state.discoveredGroups as TGroup[]).includes(g)) {
+            (state.discoveredGroups as TGroup[]).push(g);
           }
-        },
-      );
+        }
+      },
     },
   });
 

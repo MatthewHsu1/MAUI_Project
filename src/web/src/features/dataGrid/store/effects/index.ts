@@ -14,7 +14,9 @@ export const gridEffects: GridEffect[] = [columnsPersistenceEffect];
  * never needs it — grids live as long as the app — but it keeps tests that
  * build throwaway instances from leaking listeners into later tests.
  */
-export function registerEffects<TRow, TGroup>(ctx: GridEffectContext<TRow, TGroup>): () => void {
+export function registerEffects<TRow, TGroup, TKey extends string | number>(
+  ctx: GridEffectContext<TRow, TGroup, TKey>,
+): () => void {
   const unsubscribers: Array<() => void> = [];
 
   // GridEffect returns void so one effect may register several listeners; wrap
