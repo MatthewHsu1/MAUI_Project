@@ -223,8 +223,17 @@ export interface GridDescriptor<TRow, TGroup, TKey extends string | number = num
 
     /**
      * Total rows under the current view. A live query returns no total.
+     *
+     * `filter` is opaque here: the descriptor's own implementation knows its
+     * shape, and the grid only carries it. It belongs in the count's query key,
+     * because a filter change changes the total, and a stale total sizes the
+     * scroll bar for rows the grid never receives.
      */
-    fetchCount: (p: { collapsedGroups: TGroup[]; signal?: AbortSignal }) => Promise<number>;
+    fetchCount: (p: {
+      collapsedGroups: TGroup[];
+      filter?: unknown;
+      signal?: AbortSignal;
+    }) => Promise<number>;
 
     /**
      * One row by id, for an id-only push notification.

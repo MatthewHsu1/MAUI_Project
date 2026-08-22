@@ -1,12 +1,20 @@
 import { configureStore } from "@reduxjs/toolkit";
-import { QueryClient } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { rootReducer } from "../../app/rootReducer";
 import { appListener } from "../../app/listener";
-import { queryClient } from "../../app/queryClient";
-import { bondKeys } from "./api/bondQueries";
+import { fetchValuation, fetchValuationCount, fetchValuations } from "./api/bondQueries";
 import { bondGrid, createBondGridApi, GRID_NAME } from "./bondGrid";
 import type { ConversionValuation } from "./api/types";
+
+// The adapter's whole job is to hand the grid's parameters to the right query
+// function, so the query module is the seam these tests assert on. The
+// transport has its own tests (src/lib/http), and the ORDER is the server's
+// answer now, so there is nothing left here to re-sort or re-count.
+vi.mock("./api/bondQueries", () => ({
+  fetchValuations: vi.fn(),
+  fetchValuationCount: vi.fn(),
+  fetchValuation: vi.fn(),
+}));
 
 const sample: ConversionValuation[] = [
   {
@@ -27,94 +35,80 @@ const sample: ConversionValuation[] = [
     bondPrice: null,
     isInTheMoney: null,
   },
-  {
-    symbol: "C",
-    conversionShares: 3,
-    conversionValue: 200,
-    stockPrice: 2,
-    asOf: "2026-07-17",
-    bondPrice: 95,
-    isInTheMoney: false,
-  },
 ];
 
-// Seeding the cache keeps these tests free of fetch stubbing. The transport has
-// its own tests (src/lib/http); re-testing it here would couple grid behaviour
-// to HTTP details.
-function seededClient(rows: ConversionValuation[]): QueryClient {
-  const client = new QueryClient({
-    defaultOptions: { queries: { retry: false, staleTime: Infinity } },
-  });
-  client.setQueryData(bondKeys.valuations(), rows);
-  return client;
-}
-
-/** The whole list, unsorted — the collection's default ask. */
+/** The collection's default ask: the first window, unsorted. */
 const wholeList = { offset: 0, limit: 10, sort: null, collapsedGroups: [] as never[] };
 
+beforeEach(() => {
+  vi.mocked(fetchValuations).mockReset().mockResolvedValue(sample);
+  vi.mocked(fetchValuationCount).mockReset().mockResolvedValue(3);
+  vi.mocked(fetchValuation).mockReset().mockResolvedValue(sample[0]);
+});
+
 describe("createBondGridApi", () => {
-  it("returns rows in source order and reports the total", async () => {
-    const api = createBondGridApi(seededClient(sample));
-    const rows = await api.fetchRows(wholeList);
-    expect(await api.fetchCount()).toBe(3);
-    expect(rows.map((r) => r.symbol)).toEqual(["B", "A", "C"]);
+  it("asks the server for the requested window and returns it untouched", async () => {
+    const rows = await createBondGridApi().fetchRows({ ...wholeList, offset: 20, limit: 5 });
+
+    expect(vi.mocked(fetchValuations).mock.calls[0][0]).toMatchObject({ offset: 20, limit: 5 });
+    expect(rows).toBe(sample);
   });
 
-  it("slices to the requested range", async () => {
-    const api = createBondGridApi(seededClient(sample));
-    const rows = await api.fetchRows({ ...wholeList, offset: 1, limit: 1 });
-    expect(rows.map((r) => r.symbol)).toEqual(["A"]);
-    expect(await api.fetchCount()).toBe(3);
+  it("passes the sort to the server rather than reordering the slice", async () => {
+    const sort = { field: "conversionValue", direction: "desc", nulls: "last" } as const;
+
+    const rows = await createBondGridApi().fetchRows({ ...wholeList, sort });
+
+    expect(vi.mocked(fetchValuations).mock.calls[0][0]).toMatchObject({ sort });
+    // Source order, untouched: re-sorting here would fight the server's order
+    // and make rows swap under a still viewport.
+    expect(rows.map((r) => r.symbol)).toEqual(["B", "A"]);
   });
 
-  it("sorts ascending by a numeric field", async () => {
-    const rows = await createBondGridApi(seededClient(sample)).fetchRows({
-      ...wholeList,
-      sort: { field: "conversionValue", direction: "asc", nulls: "last" },
-    });
-    expect(rows.map((r) => r.conversionValue)).toEqual([100, 200, 300]);
-    expect(rows.map((r) => r.symbol)).toEqual(["A", "C", "B"]);
+  it("sends no sort parameters when the user has sorted nothing", async () => {
+    await createBondGridApi().fetchRows(wholeList);
+
+    expect(vi.mocked(fetchValuations).mock.calls[0][0].sort).toBeNull();
   });
 
-  it("sorts descending", async () => {
-    const rows = await createBondGridApi(seededClient(sample)).fetchRows({
-      ...wholeList,
-      sort: { field: "conversionValue", direction: "desc", nulls: "last" },
-    });
-    expect(rows.map((r) => r.conversionValue)).toEqual([300, 200, 100]);
+  it("forwards the slice's abort signal", async () => {
+    const controller = new AbortController();
+
+    await createBondGridApi().fetchRows({ ...wholeList, signal: controller.signal });
+
+    expect(vi.mocked(fetchValuations).mock.calls[0][0].signal).toBe(controller.signal);
   });
 
-  it("sorts null fields last regardless of direction", async () => {
-    const rows = await createBondGridApi(seededClient(sample)).fetchRows({
-      ...wholeList,
-      sort: { field: "bondPrice", direction: "asc", nulls: "last" },
-    });
-    expect(rows.map((r) => r.bondPrice)).toEqual([95, 110, null]);
+  it("takes the total from the count endpoint, never from a row list", async () => {
+    vi.mocked(fetchValuationCount).mockResolvedValue(412);
+
+    const total = await createBondGridApi().fetchCount({ collapsedGroups: [] });
+
+    expect(total).toBe(412);
+    expect(vi.mocked(fetchValuations)).not.toHaveBeenCalled();
+  });
+
+  it("resolves one row by symbol, without scanning a list", async () => {
+    const row = await createBondGridApi().fetchRow("B");
+
+    expect(vi.mocked(fetchValuation).mock.calls[0][0]).toBe("B");
+    expect(row).toBe(sample[0]);
+    expect(vi.mocked(fetchValuations)).not.toHaveBeenCalled();
+  });
+
+  it("reports a missing symbol as null", async () => {
+    vi.mocked(fetchValuation).mockResolvedValue(null);
+
+    expect(await createBondGridApi().fetchRow("gone")).toBeNull();
   });
 
   it("updateRow is a no-op returning ok:false (read-only)", async () => {
-    const api = createBondGridApi(seededClient(sample));
+    const api = createBondGridApi();
     expect(await api.updateRow({ id: "B", changes: { symbol: "X" } })).toEqual({ ok: false });
-  });
-
-  it("does not mutate the cached list when sorting, so a later unsorted call returns source order", async () => {
-    const api = createBondGridApi(seededClient(sample));
-    await api.fetchRows({
-      ...wholeList,
-      sort: { field: "conversionValue", direction: "asc", nulls: "last" },
-    });
-    const rows = await api.fetchRows(wholeList);
-    expect(rows.map((r) => r.symbol)).toEqual(["B", "A", "C"]);
   });
 });
 
 describe("bondGrid instance", () => {
-  beforeEach(() => {
-    // bondGridDescriptor is bound to the app-wide client at module scope, so
-    // the store-level test seeds that client rather than a throwaway one.
-    queryClient.setQueryData(bondKeys.valuations(), sample);
-  });
-
   it("injects itself into the root reducer on import, with no wiring in app/", () => {
     const state = rootReducer(undefined, { type: "@@init" });
     expect(bondGrid.selectRoot(state).columns.order).toEqual(
@@ -137,7 +131,7 @@ describe("bondGrid instance", () => {
     ]);
   });
 
-  it("starts with an empty store cell, and loads through the app-wide cache", async () => {
+  it("starts with an empty store cell, and loads every window from the server", async () => {
     expect(bondGrid.storeRef.current).toBeNull();
 
     const rows = await bondGrid.descriptor.api.fetchRows({
@@ -150,31 +144,13 @@ describe("bondGrid instance", () => {
     expect(rows.map((r) => r.symbol)).toEqual(["B", "A"]);
   });
 
-  it("serves every slice from one whole-list request", async () => {
-    // The endpoint is not paged: asking for many slices must not multiply the
-    // network calls behind them.
-    vi.stubEnv("VITE_API_BASE_URL", "http://api.test");
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue(
-        new Response(JSON.stringify(sample), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        }),
-      ),
-    );
-    queryClient.clear();
-
-    const slices = await Promise.all(
+  it("asks once per window, each carrying its own offset", async () => {
+    await Promise.all(
       [0, 1, 2].map((offset) =>
         bondGrid.descriptor.api.fetchRows({ offset, limit: 1, sort: null, collapsedGroups: [] }),
       ),
     );
 
-    expect(slices.map((s) => s[0].symbol)).toEqual(["B", "A", "C"]);
-    expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1);
-
-    vi.unstubAllGlobals();
-    vi.unstubAllEnvs();
+    expect(vi.mocked(fetchValuations).mock.calls.map((c) => c[0].offset)).toEqual([0, 1, 2]);
   });
 });

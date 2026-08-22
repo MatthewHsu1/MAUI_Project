@@ -6,16 +6,18 @@ using AppName.Domain.ValueObjects;
 
 namespace AppName.Application.Tests.UseCases.Bonds;
 
-public class GetValuationsUseCaseTests
+public class GetValuationPageUseCaseTests
 {
     private static readonly DateTimeOffset FixedUtc = new(2026, 7, 2, 4, 0, 0, TimeSpan.Zero); // TW 2026-07-02
     private static readonly DateOnly TwToday = new(2026, 7, 2);
 
-    private static readonly ValuationQuery DefaultQuery = new(
-        ValuationFilter.None,
-        new SortSpec<ValuationSortField>(ValuationSortField.Symbol, SortDirection.Asc, NullPlacement.Last),
+    private static ValuationQuery QueryFor(ValuationFilter filter) => new(
+        filter,
+        new SortSpec<ValuationSortField>(ValuationSortField.ConversionValue, SortDirection.Desc, NullPlacement.Last),
         Offset: 0,
         Limit: 100);
+
+    private static readonly ValuationQuery DefaultQuery = QueryFor(ValuationFilter.None);
 
     private sealed class Fixture
     {
@@ -29,6 +31,8 @@ public class GetValuationsUseCaseTests
                 .ReturnsAsync(true);
             Snapshots.Setup(s => s.QueryAsync(It.IsAny<ValuationQuery>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync(Array.Empty<BondValuationSnapshot>());
+            Snapshots.Setup(s => s.CountAsync(It.IsAny<ValuationFilter>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(0);
             Refresh.Setup(r => r.ExecuteAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
         }
 
@@ -46,6 +50,13 @@ public class GetValuationsUseCaseTests
             return this;
         }
 
+        public Fixture WithCount(int count)
+        {
+            Snapshots.Setup(s => s.CountAsync(It.IsAny<ValuationFilter>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(count);
+            return this;
+        }
+
         public Fixture WithFailingRefresh()
         {
             Refresh.Setup(r => r.ExecuteAsync(It.IsAny<CancellationToken>()))
@@ -53,7 +64,7 @@ public class GetValuationsUseCaseTests
             return this;
         }
 
-        public GetValuationsUseCase Build() =>
+        public GetValuationPageUseCase Build() =>
             new(RefreshState.Object, Snapshots.Object, Refresh.Object, new FixedTimeProvider(FixedUtc));
     }
 
@@ -82,44 +93,45 @@ public class GetValuationsUseCaseTests
     {
         var fx = new Fixture()
             .WithLostClaim()
+            .WithCount(412)
             .WithSnapshots(new BondValuationSnapshot("11011", 2_000m, 120_000m, 60m, new DateOnly(2026, 7, 1), null, null));
 
-        var dtos = await fx.Build().ExecuteAsync(DefaultQuery);
+        var page = await fx.Build().ExecuteAsync(DefaultQuery);
 
         fx.Refresh.Verify(r => r.ExecuteAsync(It.IsAny<CancellationToken>()), Times.Never);
-        Assert.Single(dtos);
+        Assert.Single(page.Items);
+        Assert.Equal(412, page.Total);
     }
 
     [Fact]
-    public async Task ExecuteAsync_ReturnsSnapshotsMappedToDtos()
+    public async Task ExecuteAsync_ReturnsItemsFromQueryAndTotalFromCount()
     {
         var fx = new Fixture()
-            .WithSnapshots(new BondValuationSnapshot("11011", 2_000m, 120_000m, 60m, new DateOnly(2026, 7, 2), 100_000m, true));
+            .WithCount(412)
+            .WithSnapshots(
+                new BondValuationSnapshot("11011", 2_000m, 120_000m, 60m, new DateOnly(2026, 7, 2), 100_000m, true),
+                new BondValuationSnapshot("11012", 1_000m, 50_000m, 50m, new DateOnly(2026, 7, 2), null, null));
 
-        var dtos = await fx.Build().ExecuteAsync(DefaultQuery);
+        var page = await fx.Build().ExecuteAsync(DefaultQuery);
 
-        var dto = Assert.Single(dtos);
-        Assert.Equal("11011", dto.Symbol);
-        Assert.Equal(2_000m, dto.ConversionShares);
-        Assert.Equal(120_000m, dto.ConversionValue);
-        Assert.Equal(60m, dto.StockPrice);
-        Assert.Equal(new DateOnly(2026, 7, 2), dto.AsOf);
-        Assert.Equal(100_000m, dto.BondPrice);
-        Assert.True(dto.IsInTheMoney);
+        Assert.Equal(412, page.Total);       // the filtered total, not the window size
+        Assert.Equal(2, page.Items.Count);
+        Assert.Equal("11011", page.Items[0].Symbol);
+        Assert.Equal("11012", page.Items[1].Symbol);
+        Assert.Equal(120_000m, page.Items[0].ConversionValue);
+        Assert.Null(page.Items[1].BondPrice);
     }
 
     [Fact]
-    public async Task ExecuteAsync_PassesQueryToRepository()
+    public async Task ExecuteAsync_CountsTheFilterAlone_NotTheWholeQuery()
     {
         var fx = new Fixture();
-        var query = new ValuationQuery(
-            new ValuationFilter(Symbol: "110"),
-            new SortSpec<ValuationSortField>(ValuationSortField.BondPrice, SortDirection.Desc, NullPlacement.Last),
-            Offset: 200,
-            Limit: 50);
+        var filter = new ValuationFilter(Symbol: "110", MinConversionValue: 100_000m);
+        var query = QueryFor(filter) with { Offset = 200, Limit = 50 };
 
         await fx.Build().ExecuteAsync(query);
 
+        fx.Snapshots.Verify(s => s.CountAsync(filter, It.IsAny<CancellationToken>()), Times.Once);
         fx.Snapshots.Verify(s => s.QueryAsync(query, It.IsAny<CancellationToken>()), Times.Once);
     }
 
@@ -128,11 +140,12 @@ public class GetValuationsUseCaseTests
     {
         var fx = new Fixture()
             .WithFailingRefresh()
+            .WithCount(1)
             .WithSnapshots(new BondValuationSnapshot("11011", 2_000m, 120_000m, 60m, new DateOnly(2026, 7, 1), null, null));
 
-        var dtos = await fx.Build().ExecuteAsync(DefaultQuery);
+        var page = await fx.Build().ExecuteAsync(DefaultQuery);
 
-        var dto = Assert.Single(dtos);      // no throw; stale cache served
-        Assert.Null(dto.BondPrice);
+        Assert.Single(page.Items);          // no throw; stale cache served
+        Assert.Equal(1, page.Total);
     }
 }

@@ -1,7 +1,4 @@
-import type { QueryClient } from "@tanstack/react-query";
-import { queryClient } from "../../app/queryClient";
 import { injectSlice } from "../../app/rootReducer";
-import { compareBySpec } from "../dataGrid/data/sortSpec";
 import { createGridInstance } from "../dataGrid/store/createGridInstance";
 import { localStorageColumnsAdapter } from "../dataGrid/store/localStorageColumnsAdapter";
 import type {
@@ -11,7 +8,7 @@ import type {
   GridSliceState,
   UpdateRowParams,
 } from "../dataGrid/types";
-import { valuationsQuery } from "./api/bondQueries";
+import { fetchValuation, fetchValuationCount, fetchValuations } from "./api/bondQueries";
 import { bondCells } from "./bondCells";
 import type { ConversionValuation } from "./api/types";
 
@@ -21,32 +18,30 @@ export type BondRow = ConversionValuation;
 export const GRID_NAME = "bonds";
 
 /**
- * Adapts the whole-list valuations query onto the grid's slice API: fetch
- * through the cache, sort client-side per the requested sort, serve the slice.
- *
- * The endpoint is not paged, so every slice resolves from one shared
- * whole-list query — `fetchQuery` dedupes them into a single request no matter
- * how many slices the collection asks for. When the API gains offset/limit this
- * becomes a real per-slice request and nothing above it changes.
+ * Adapts the valuations endpoints onto the grid's slice API. The window, the
+ * order, and the total all resolve on the server, so this adapter only renames
+ * parameters.
  *
  * `updateRow` is a no-op — the grid is read-only.
  */
-export function createBondGridApi(client: QueryClient) {
+export function createBondGridApi() {
   return {
     async fetchRows(p: FetchRowsParams<never>): Promise<BondRow[]> {
-      const all = await client.fetchQuery(valuationsQuery());
-      const rows = p.sort
-        ? [...all].sort((a, b) => compareBySpec(a, b, p.sort!, (r) => r.symbol))
-        : all;
-      return rows.slice(p.offset, p.offset + p.limit);
+      return fetchValuations({
+        offset: p.offset,
+        limit: p.limit,
+        sort: p.sort,
+        signal: p.signal,
+      });
     },
-    async fetchCount(): Promise<number> {
-      const all = await client.fetchQuery(valuationsQuery());
-      return all.length;
+    // The grid's optional count filter is not accepted here on purpose:
+    // `FetchRowsParams` carries no filter, so a filtered total would size the
+    // scroll bar for rows `fetchRows` never asks for. Both gain it in one step.
+    async fetchCount(p: { collapsedGroups: never[]; signal?: AbortSignal }): Promise<number> {
+      return fetchValuationCount({ signal: p.signal });
     },
-    async fetchRow(id: string): Promise<BondRow | null> {
-      const all = await client.fetchQuery(valuationsQuery());
-      return all.find((r) => r.symbol === id) ?? null;
+    async fetchRow(id: string, signal?: AbortSignal): Promise<BondRow | null> {
+      return fetchValuation(id, signal);
     },
     async updateRow(_p: UpdateRowParams<BondRow, string>): Promise<{ ok: boolean }> {
       return { ok: false };
@@ -115,7 +110,7 @@ export const bondGridDescriptor: GridDescriptor<BondRow, never, string> = {
     sortable: () => true,
   },
   api: {
-    ...createBondGridApi(queryClient),
+    ...createBondGridApi(),
     loadColumns: columnsAdapter.loadColumns,
     saveColumns: columnsAdapter.saveColumns,
   },

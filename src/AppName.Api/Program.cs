@@ -17,7 +17,8 @@ builder.Services.AddApplication().AddInfrastructure(builder.Configuration);
 
 builder.Services.AddOpenApi(options =>
 {
-    options.AddSchemaTransformer<DecimalSchemaTransformer>();
+    options.AddSchemaTransformer<NumericSchemaTransformer>();
+    options.AddSchemaTransformer<ValuationEnumSchemaTransformer>();
 });
 
 // --- Auth (JWT bearer, dev stub) ----------------------------------------

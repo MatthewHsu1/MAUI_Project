@@ -12,6 +12,8 @@ public static class DependencyInjection
         services.AddTransient<GetConversionValuationUseCase>();
         services.AddTransient<IRefreshAllBondsUseCase, RefreshAllBondsUseCase>();
         services.AddTransient<GetValuationsUseCase>();
+        services.AddTransient<GetValuationCountUseCase>();
+        services.AddTransient<GetValuationPageUseCase>();
         return services;
     }
 }

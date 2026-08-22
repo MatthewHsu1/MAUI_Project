@@ -36,6 +36,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/valuations/count": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetValuationCount"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/valuations/query": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["QueryValuations"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/valuations/{symbol}": {
         parameters: {
             query?: never;
@@ -102,10 +134,65 @@ export interface components {
             bondPrice: null | number;
             isInTheMoney: null | boolean;
         };
+        CountDto: {
+            /** Format: int32 */
+            count: number;
+        };
+        HttpValidationProblemDetails: {
+            type?: null | string;
+            title?: null | string;
+            /** Format: int32 */
+            status?: null | number;
+            detail?: null | string;
+            instance?: null | string;
+            errors?: {
+                [key: string]: string[];
+            };
+        };
         TokenResponse: {
             access_token: string;
             /** Format: int32 */
-            expires_in: number | string;
+            expires_in: number;
+        };
+        ValuationFilterNode: {
+            /** @enum {null|string} */
+            operator?: "and" | "or" | null;
+            symbol?: null | string;
+            inTheMoney?: null | boolean;
+            /** Format: double */
+            minConversionValue?: null | number;
+            /** Format: double */
+            maxConversionValue?: null | number;
+            /** Format: double */
+            minBondPrice?: null | number;
+            /** Format: double */
+            maxBondPrice?: null | number;
+            /** Format: date */
+            asOfFrom?: null | string;
+            /** Format: date */
+            asOfTo?: null | string;
+            groups?: components["schemas"]["ValuationFilterNode"][];
+        };
+        ValuationPageDto: {
+            items: components["schemas"]["ConversionValuationDto"][];
+            /** Format: int32 */
+            total: number;
+        };
+        ValuationQueryBody: {
+            filter?: null | components["schemas"]["ValuationFilterNode"];
+            sort?: null | components["schemas"]["ValuationSortBody"];
+            /** Format: int32 */
+            offset?: null | number;
+            /** Format: int32 */
+            limit?: null | number;
+        };
+        ValuationSortBody: {
+            /** @enum {null|string} */
+            field?: "symbol" | "conversionShares" | "conversionValue" | "stockPrice" | "asOf" | "bondPrice" | "isInTheMoney" | null;
+            /** @enum {null|string} */
+            direction?: "asc" | "desc" | null;
+            /** @enum {null|string} */
+            nulls?: "first" | "last" | null;
         };
     };
     responses: never;
@@ -138,7 +225,21 @@ export interface operations {
     };
     GetValuations: {
         parameters: {
-            query?: never;
+            query?: {
+                offset?: number;
+                limit?: number;
+                sortField?: "symbol" | "conversionShares" | "conversionValue" | "stockPrice" | "asOf" | "bondPrice" | "isInTheMoney";
+                sortDir?: "asc" | "desc";
+                nulls?: "first" | "last";
+                symbol?: string;
+                inTheMoney?: boolean;
+                minConversionValue?: number;
+                maxConversionValue?: number;
+                minBondPrice?: number;
+                maxBondPrice?: number;
+                asOfFrom?: string;
+                asOfTo?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -152,6 +253,86 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ConversionValuationDto"][];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+        };
+    };
+    GetValuationCount: {
+        parameters: {
+            query?: {
+                symbol?: string;
+                inTheMoney?: boolean;
+                minConversionValue?: number;
+                maxConversionValue?: number;
+                minBondPrice?: number;
+                maxBondPrice?: number;
+                asOfFrom?: string;
+                asOfTo?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CountDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+        };
+    };
+    QueryValuations: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ValuationQueryBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ValuationPageDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
                 };
             };
         };

@@ -1,5 +1,6 @@
 using AppName.Domain.Abstractions;
 using AppName.Domain.Entities;
+using AppName.Domain.ValueObjects;
 using Microsoft.EntityFrameworkCore;
 
 namespace AppName.Infrastructure.Persistence;
@@ -8,11 +9,28 @@ namespace AppName.Infrastructure.Persistence;
 public sealed class ValuationSnapshotRepository(IDbContextFactory<AppDbContext> factory) : IValuationSnapshotRepository
 {
     /// <inheritdoc/>
-    public async Task<IReadOnlyList<BondValuationSnapshot>> GetAllAsync(CancellationToken ct = default)
+    public async Task<IReadOnlyList<BondValuationSnapshot>> QueryAsync(ValuationQuery query, CancellationToken ct = default)
     {
         await using var db = factory.CreateDbContext();
 
-        return await db.BondValuationSnapshots.AsNoTracking().ToListAsync(ct);
+        return await new ValuationSnapshotQueryBuilder(db)
+            .WithFilter(query.Filter)
+            .WithSorting(query.Sort)
+            .WithPage(query.Offset, query.Limit)
+            .Build()
+            .ToListAsync(ct);
+    }
+
+    /// <inheritdoc/>
+    public async Task<int> CountAsync(ValuationFilter filter, CancellationToken ct = default)
+    {
+        await using var db = factory.CreateDbContext();
+
+        // No sort and no page: neither changes a count, and both cost SQL.
+        return await new ValuationSnapshotQueryBuilder(db)
+            .WithFilter(filter)
+            .Build()
+            .CountAsync(ct);
     }
 
     /// <inheritdoc/>

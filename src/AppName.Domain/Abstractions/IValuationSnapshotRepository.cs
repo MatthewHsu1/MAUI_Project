@@ -1,4 +1,5 @@
 using AppName.Domain.Entities;
+using AppName.Domain.ValueObjects;
 
 namespace AppName.Domain.Abstractions;
 
@@ -8,9 +9,17 @@ namespace AppName.Domain.Abstractions;
 public interface IValuationSnapshotRepository
 {
     /// <summary>
-    /// Returns all cached valuation snapshots.
+    /// Returns one ordered slice of the snapshots the query keeps. The filter,
+    /// the order, and the slice all run in the database.
     /// </summary>
-    Task<IReadOnlyList<BondValuationSnapshot>> GetAllAsync(CancellationToken ct = default);
+    Task<IReadOnlyList<BondValuationSnapshot>> QueryAsync(ValuationQuery query, CancellationToken ct = default);
+
+    /// <summary>
+    /// Counts the snapshots the filter keeps. The parameter is the filter and
+    /// not a <see cref="ValuationQuery"/>, because a count cannot depend on the
+    /// offset, the limit, or the order.
+    /// </summary>
+    Task<int> CountAsync(ValuationFilter filter, CancellationToken ct = default);
 
     /// <summary>
     /// Inserts each snapshot, or overwrites the existing snapshot for that symbol.

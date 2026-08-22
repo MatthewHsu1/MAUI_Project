@@ -1,14 +1,13 @@
 using AppName.Application.Dtos;
-using AppName.Application.Time;
 using AppName.Domain.Abstractions;
-using AppName.Domain.Entities;
+using AppName.Domain.ValueObjects;
 
 namespace AppName.Application.UseCases.Bonds;
 
 /// <summary>
-/// Returns today's conversion valuation for every cached convertible bond,
-/// refreshing the cache once per Taiwan trading day. Refresh is an internal,
-/// lazy step — never surfaced as an error to the caller.
+/// Returns one window of cached conversion valuations, ordered and filtered as
+/// the query asks, refreshing the cache once per Taiwan trading day. Refresh is
+/// an internal, lazy step — never surfaced as an error to the caller.
 /// </summary>
 public sealed class GetValuationsUseCase(
     IBondValuationRefreshStateRepository refreshStateRepo,
@@ -17,32 +16,16 @@ public sealed class GetValuationsUseCase(
     TimeProvider timeProvider)
 {
     /// <summary>
-    /// Ensures freshness (best-effort) then returns all cached valuations.
+    /// Ensures freshness (best-effort) then returns the requested slice.
     /// </summary>
-    public async Task<IReadOnlyList<ConversionValuationDto>> ExecuteAsync(CancellationToken ct = default)
+    /// <param name="query">The filter, the sort, and the window to read.</param>
+    /// <param name="ct">Cancels the refresh and the read.</param>
+    public async Task<IReadOnlyList<ConversionValuationDto>> ExecuteAsync(
+        ValuationQuery query, CancellationToken ct = default)
     {
-        var state = await refreshStateRepo.GetAsync(ct);
-        var today = TaiwanClock.Today(timeProvider);
+        await DailyRefreshGate.EnsureFreshAsync(refreshStateRepo, refreshAllBonds, timeProvider, ct);
 
-        if (state.LastAttemptDate != today)
-        {
-            try
-            {
-                await refreshAllBonds.ExecuteAsync(ct);
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                // Freshness is best-effort; a provider outage must serve stale cache,
-                // not fail the caller.
-                await refreshStateRepo.SetAsync(
-                    new BondValuationRefreshState(BondValuationRefreshState.SingletonId, state.LastAsOf, today), ct);
-            }
-        }
-
-        var snapshots = await snapshotRepo.GetAllAsync(ct);
-        return snapshots.Select(ToDto).ToList();
+        var snapshots = await snapshotRepo.QueryAsync(query, ct);
+        return snapshots.Select(ValuationSnapshotMapper.ToDto).ToList();
     }
-
-    private static ConversionValuationDto ToDto(BondValuationSnapshot s) =>
-        new(s.Symbol, s.ConversionShares, s.ConversionValue, s.StockPrice, s.AsOf, s.BondPrice, s.IsInTheMoney);
 }
