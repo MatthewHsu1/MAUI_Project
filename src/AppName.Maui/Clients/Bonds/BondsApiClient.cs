@@ -1,5 +1,5 @@
 using System.Net.Http.Json;
-using AppName.Application.Dtos;
+using AppName.Application.Dtos.Bonds;
 
 namespace AppName.Maui.Clients.Bonds;
 

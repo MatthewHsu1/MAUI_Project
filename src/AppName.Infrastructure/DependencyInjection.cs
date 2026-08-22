@@ -1,11 +1,13 @@
-using AppName.Domain.Abstractions;
+using AppName.Domain.Abstractions.Bonds;
+using AppName.Domain.Abstractions.MarketData;
 using AppName.Infrastructure.Clients.Tpex;
 using AppName.Infrastructure.Clients.Twse;
 using AppName.Infrastructure.Clients.TwseMis;
 using AppName.Infrastructure.Gateways;
-using AppName.Infrastructure.Persistence;
-using Microsoft.EntityFrameworkCore;
+using AppName.Infrastructure.Persistence.Bonds;
+using AppName.Infrastructure.Persistence.Context;
 using Microsoft.EntityFrameworkCore.Migrations;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 

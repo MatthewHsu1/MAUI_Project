@@ -1,5 +1,5 @@
-using AppName.Application.Dtos;
-using AppName.Domain.Entities;
+using AppName.Application.Dtos.Bonds;
+using AppName.Domain.Entities.Bonds;
 
 namespace AppName.Application.UseCases.Bonds;
 

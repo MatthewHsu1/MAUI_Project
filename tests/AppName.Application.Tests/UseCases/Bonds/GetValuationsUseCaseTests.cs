@@ -1,8 +1,8 @@
 using AppName.Application.UseCases.Bonds;
-using AppName.Domain.Abstractions;
-using AppName.Domain.Entities;
+using AppName.Domain.Abstractions.Bonds;
+using AppName.Domain.Entities.Bonds;
 using AppName.Domain.Querying;
-using AppName.Domain.ValueObjects;
+using AppName.Domain.ValueObjects.Valuations;
 
 namespace AppName.Application.Tests.UseCases.Bonds;
 

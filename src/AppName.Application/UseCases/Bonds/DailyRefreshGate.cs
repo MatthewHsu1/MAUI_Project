@@ -1,5 +1,5 @@
 using AppName.Application.Time;
-using AppName.Domain.Abstractions;
+using AppName.Domain.Abstractions.Bonds;
 
 namespace AppName.Application.UseCases.Bonds;
 

@@ -1,5 +1,5 @@
-using AppName.Domain.Abstractions;
-using AppName.Domain.ValueObjects;
+using AppName.Domain.Abstractions.Bonds;
+using AppName.Domain.ValueObjects.Valuations;
 
 namespace AppName.Application.UseCases.Bonds;
 

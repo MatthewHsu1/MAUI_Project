@@ -1,7 +1,8 @@
 using System.Text.Json.Nodes;
-using AppName.Api.Endpoints;
+using AppName.Api.Endpoints.Bonds;
+using AppName.Api.Endpoints.Shared;
 using AppName.Domain.Querying;
-using AppName.Domain.ValueObjects;
+using AppName.Domain.ValueObjects.Valuations;
 using Microsoft.AspNetCore.OpenApi;
 using Microsoft.OpenApi;
 

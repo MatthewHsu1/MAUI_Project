@@ -1,6 +1,6 @@
 using AppName.Application.UseCases.Bonds;
-using AppName.Domain.Abstractions;
-using AppName.Domain.ValueObjects;
+using AppName.Domain.Abstractions.Bonds;
+using AppName.Domain.ValueObjects.Valuations;
 
 namespace AppName.Application.Tests.UseCases.Bonds;
 

@@ -1,6 +1,7 @@
 using AppName.Api.Authentication;
 using AppName.Api.Cors;
-using AppName.Api.Endpoints;
+using AppName.Api.Endpoints.Auth;
+using AppName.Api.Endpoints.Bonds;
 using AppName.Api.OpenApi;
 using AppName.Application;
 using AppName.Infrastructure;
