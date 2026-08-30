@@ -4,7 +4,7 @@ import {
   type ThunkDispatch,
   type UnknownAction,
 } from "@reduxjs/toolkit";
-import appearance from "../theme/appearanceSlice";
+import { appearanceReducer as appearance } from "@matthewhsu1/datagrid";
 
 /**
  * Slices that register themselves at import time rather than being listed here.

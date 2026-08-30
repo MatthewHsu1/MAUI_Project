@@ -8,7 +8,12 @@ import { router } from "./app/router";
 import { queryClient } from "./app/queryClient";
 import "./index.css";
 import "./tailwind.css";
-import "./theme/radixStyles";
+// The grid's own stylesheets. `radix-styles` is a side-effect module carrying
+// the Radix Themes component CSS plus every colour scale an enum badge can land
+// on; without it the badges draw with unresolved CSS variables. `datagrid.css`
+// is layout only, on `dg:`-prefixed classes, and resets nothing of ours.
+import "@matthewhsu1/datagrid/radix-styles";
+import "@matthewhsu1/datagrid/datagrid.css";
 import { RadixThemeProvider } from "./theme/RadixThemeProvider";
 import { startColorSchemeWatcher } from "./theme/colorSchemeWatcher";
 import { setRefreshHandler } from "./lib/http/authTokens";
@@ -29,37 +34,14 @@ setRefreshHandler(async () => {
   return data.access_token;
 });
 
-/**
- * The worker must be running before the first request leaves the page, so the
- * render waits for it. The dynamic import keeps the mock modules out of the
- * production bundle — see src/mocks/browser.ts.
- */
-async function bootstrap() {
-  if (import.meta.env.DEV) {
-    const { startMocks } = await import("./mocks/browser");
-
-    // Render anyway on a mock-startup failure. Letting this rejection go
-    // unhandled would leave a blank page for EVERY route, not just the
-    // dev-only pages that depend on the mocks. A page that 404s against the
-    // real API is a far clearer symptom than an app that never paints.
-    try {
-      await startMocks();
-    } catch (error) {
-      console.error("Failed to start mock service worker.", { cause: error });
-    }
-  }
-
-  createRoot(document.getElementById("root")!).render(
-    <StrictMode>
-      <QueryClientProvider client={queryClient}>
-        <Provider store={store}>
-          <RadixThemeProvider>
-            <RouterProvider router={router} />
-          </RadixThemeProvider>
-        </Provider>
-      </QueryClientProvider>
-    </StrictMode>,
-  );
-}
-
-void bootstrap();
+createRoot(document.getElementById("root")!).render(
+  <StrictMode>
+    <QueryClientProvider client={queryClient}>
+      <Provider store={store}>
+        <RadixThemeProvider>
+          <RouterProvider router={router} />
+        </RadixThemeProvider>
+      </Provider>
+    </QueryClientProvider>
+  </StrictMode>,
+);

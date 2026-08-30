@@ -9,15 +9,9 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as TestGridRouteImport } from './routes/test-grid'
 import { Route as BondsRouteImport } from './routes/bonds'
 import { Route as IndexRouteImport } from './routes/index'
 
-const TestGridRoute = TestGridRouteImport.update({
-  id: '/test-grid',
-  path: '/test-grid',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const BondsRoute = BondsRouteImport.update({
   id: '/bonds',
   path: '/bonds',
@@ -32,42 +26,31 @@ const IndexRoute = IndexRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/bonds': typeof BondsRoute
-  '/test-grid': typeof TestGridRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/bonds': typeof BondsRoute
-  '/test-grid': typeof TestGridRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/bonds': typeof BondsRoute
-  '/test-grid': typeof TestGridRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/bonds' | '/test-grid'
+  fullPaths: '/' | '/bonds'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/bonds' | '/test-grid'
-  id: '__root__' | '/' | '/bonds' | '/test-grid'
+  to: '/' | '/bonds'
+  id: '__root__' | '/' | '/bonds'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   BondsRoute: typeof BondsRoute
-  TestGridRoute: typeof TestGridRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/test-grid': {
-      id: '/test-grid'
-      path: '/test-grid'
-      fullPath: '/test-grid'
-      preLoaderRoute: typeof TestGridRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/bonds': {
       id: '/bonds'
       path: '/bonds'
@@ -88,7 +71,6 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   BondsRoute: BondsRoute,
-  TestGridRoute: TestGridRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

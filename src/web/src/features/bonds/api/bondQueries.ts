@@ -1,7 +1,7 @@
 import { queryOptions } from "@tanstack/react-query";
 import { apiClient } from "../../../lib/http/apiClient";
 import { ApiError } from "../../../lib/http/ApiError";
-import type { SortSpec } from "../../dataGrid/data/sortSpec";
+import type { SortSpec } from "@matthewhsu1/datagrid";
 import type { ConversionValuation } from "./types";
 
 const PATH = "/api/valuations";

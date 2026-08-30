@@ -1,6 +1,5 @@
 /* Radix Themes owns colour, typography, and appearance (see RadixThemeProvider).
-   This file carries only what Radix cannot: the document layout chain and the
-   token bridges below. */
+   This file carries only what Radix cannot: the document layout chain. */
 
 /* The canvas grid sizes itself to its parent, so the layout chain from html
    down to the grid container must have a real height. Pages follow the
@@ -29,24 +28,4 @@ body,
   flex-direction: column;
   flex: 1;
   min-height: 0;
-}
-
-/* shadcn -> Radix token bridge. Read via tailwind.css's `@theme inline` block. */
-.radix-themes {
-  --background: var(--color-panel-solid);
-  --foreground: var(--gray-12);
-  --border: var(--gray-6);
-  --input: var(--gray-7);
-  --ring: var(--accent-8);
-}
-
-/* react-day-picker accent binding for the grid's date-cell editor. The editor
-   renders <Calendar> as a DESCENDANT of this class so these vars cascade into
-   the react-day-picker root, binding its accent to Radix's accent so the
-   calendar follows radixTheme.ts at runtime (e.g. flipping accentColor reflows
-   the calendar with no code change). Kept scoped because they only apply to
-   react-day-picker, not to shadcn components generally. */
-.date-cell-editor {
-  --rdp-accent-color: var(--accent-9);
-  --rdp-accent-background-color: var(--accent-3);
 }

@@ -1,4 +1,4 @@
-import { setAppearance, type Appearance } from "./appearanceSlice";
+import { setAppearance, type Appearance } from "@matthewhsu1/datagrid";
 
 // The WebView inherits the OS/app colour scheme, so the CSS media query is our
 // appearance signal.
