@@ -1,6 +1,7 @@
 using System.Globalization;
-using AppName.Domain.Abstractions;
-using AppName.Domain.Entities;
+using AppName.Domain.Abstractions.MarketData;
+using AppName.Domain.Entities.Bonds;
+using AppName.Domain.Entities.Quotes;
 using AppName.Infrastructure.Clients.Tpex;
 using AppName.Infrastructure.Clients.Twse;
 using AppName.Infrastructure.Clients.TwseMis;

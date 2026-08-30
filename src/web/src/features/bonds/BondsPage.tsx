@@ -1,4 +1,4 @@
-import { DataGrid } from "../dataGrid/DataGrid";
+import { DataGrid } from "@matthewhsu1/datagrid";
 import { bondGrid } from "./bondGrid";
 
 /**

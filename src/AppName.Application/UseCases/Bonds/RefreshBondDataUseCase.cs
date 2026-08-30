@@ -1,4 +1,5 @@
-using AppName.Domain.Abstractions;
+using AppName.Domain.Abstractions.Bonds;
+using AppName.Domain.Abstractions.MarketData;
 
 namespace AppName.Application.UseCases.Bonds;
 

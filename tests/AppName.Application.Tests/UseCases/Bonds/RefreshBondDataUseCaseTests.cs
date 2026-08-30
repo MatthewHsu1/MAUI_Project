@@ -1,6 +1,7 @@
 using AppName.Application.UseCases.Bonds;
-using AppName.Domain.Abstractions;
-using AppName.Domain.Entities;
+using AppName.Domain.Abstractions.Bonds;
+using AppName.Domain.Abstractions.MarketData;
+using AppName.Domain.Entities.Bonds;
 
 namespace AppName.Application.Tests.UseCases.Bonds;
 

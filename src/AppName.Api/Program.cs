@@ -1,6 +1,7 @@
 using AppName.Api.Authentication;
 using AppName.Api.Cors;
-using AppName.Api.Endpoints;
+using AppName.Api.Endpoints.Auth;
+using AppName.Api.Endpoints.Bonds;
 using AppName.Api.OpenApi;
 using AppName.Application;
 using AppName.Infrastructure;
@@ -17,7 +18,8 @@ builder.Services.AddApplication().AddInfrastructure(builder.Configuration);
 
 builder.Services.AddOpenApi(options =>
 {
-    options.AddSchemaTransformer<DecimalSchemaTransformer>();
+    options.AddSchemaTransformer<NumericSchemaTransformer>();
+    options.AddSchemaTransformer<ValuationEnumSchemaTransformer>();
 });
 
 // --- Auth (JWT bearer, dev stub) ----------------------------------------

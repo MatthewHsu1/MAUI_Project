@@ -1,18 +1,13 @@
-import type { QueryClient } from "@tanstack/react-query";
-import { queryClient } from "../../app/queryClient";
+import {
+  createGridInstance,
+  type ColumnDef,
+  type FetchRowsParams,
+  type GridDescriptor,
+  type GridSliceState,
+  type UpdateRowParams,
+} from "@matthewhsu1/datagrid";
 import { injectSlice } from "../../app/rootReducer";
-import { compareBySpec } from "../dataGrid/data/sortSpec";
-import { createGridInstance } from "../dataGrid/store/createGridInstance";
-import { localStorageColumnsAdapter } from "../dataGrid/store/localStorageColumnsAdapter";
-import type {
-  ColumnDef,
-  FetchRowsParams,
-  GridDescriptor,
-  GridSliceState,
-  UpdateRowParams,
-} from "../dataGrid/types";
-import { valuationsQuery } from "./api/bondQueries";
-import { bondCells } from "./bondCells";
+import { fetchValuation, fetchValuationCount, fetchValuations } from "./api/bondQueries";
 import type { ConversionValuation } from "./api/types";
 
 /** A valuation as the grid sees it. `symbol` is the stable row key. */
@@ -21,32 +16,30 @@ export type BondRow = ConversionValuation;
 export const GRID_NAME = "bonds";
 
 /**
- * Adapts the whole-list valuations query onto the grid's slice API: fetch
- * through the cache, sort client-side per the requested sort, serve the slice.
- *
- * The endpoint is not paged, so every slice resolves from one shared
- * whole-list query — `fetchQuery` dedupes them into a single request no matter
- * how many slices the collection asks for. When the API gains offset/limit this
- * becomes a real per-slice request and nothing above it changes.
+ * Adapts the valuations endpoints onto the grid's slice API. The window, the
+ * order, and the total all resolve on the server, so this adapter only renames
+ * parameters.
  *
  * `updateRow` is a no-op — the grid is read-only.
  */
-export function createBondGridApi(client: QueryClient) {
+export function createBondGridApi() {
   return {
     async fetchRows(p: FetchRowsParams<never>): Promise<BondRow[]> {
-      const all = await client.fetchQuery(valuationsQuery());
-      const rows = p.sort
-        ? [...all].sort((a, b) => compareBySpec(a, b, p.sort!, (r) => r.symbol))
-        : all;
-      return rows.slice(p.offset, p.offset + p.limit);
+      return fetchValuations({
+        offset: p.offset,
+        limit: p.limit,
+        sort: p.sort,
+        signal: p.signal,
+      });
     },
-    async fetchCount(): Promise<number> {
-      const all = await client.fetchQuery(valuationsQuery());
-      return all.length;
+    // The grid's optional count filter is not accepted here on purpose:
+    // `FetchRowsParams` carries no filter, so a filtered total would size the
+    // scroll bar for rows `fetchRows` never asks for. Both gain it in one step.
+    async fetchCount(p: { collapsedGroups: never[]; signal?: AbortSignal }): Promise<number> {
+      return fetchValuationCount({ signal: p.signal });
     },
-    async fetchRow(id: string): Promise<BondRow | null> {
-      const all = await client.fetchQuery(valuationsQuery());
-      return all.find((r) => r.symbol === id) ?? null;
+    async fetchRow(id: string, signal?: AbortSignal): Promise<BondRow | null> {
+      return fetchValuation(id, signal);
     },
     async updateRow(_p: UpdateRowParams<BondRow, string>): Promise<{ ok: boolean }> {
       return { ok: false };
@@ -54,47 +47,78 @@ export function createBondGridApi(client: QueryClient) {
   };
 }
 
+// Every column names one of the engine's own cell types (the `dg:` prefix) and
+// carries that cell's settings on `options`. Nothing is registered and nothing
+// is built at module scope — the engine draws all five.
+//
+// Every bond column is read-only, so no editor ever opens; a null value draws
+// as "—".
 const COLUMN_DEFS: Record<string, ColumnDef> = {
-  symbol: { field: "symbol", title: "Symbol", defaultWidth: 110, editable: false, type: "symbol" },
+  symbol: {
+    field: "symbol",
+    title: "Symbol",
+    defaultWidth: 110,
+    editable: false,
+    type: "dg:text",
+  },
   conversionShares: {
     field: "conversionShares",
     title: "Conversion Shares",
     defaultWidth: 150,
     editable: false,
-    type: "shares",
+    type: "dg:number",
+    options: { format: "integer", thousandSeparator: true },
   },
   conversionValue: {
     field: "conversionValue",
     title: "Conversion Value",
     defaultWidth: 160,
     editable: false,
-    type: "ntCurrency0",
+    type: "dg:number",
+    options: { format: "currency", currency: "TWD", decimalScale: 0 },
   },
   stockPrice: {
     field: "stockPrice",
     title: "Stock Price",
     defaultWidth: 130,
     editable: false,
-    type: "ntCurrency2",
+    type: "dg:number",
+    options: { format: "currency", currency: "TWD", decimalScale: 2 },
   },
   bondPrice: {
     field: "bondPrice",
     title: "Bond Price",
     defaultWidth: 130,
     editable: false,
-    type: "ntCurrency2",
+    type: "dg:number",
+    options: { format: "currency", currency: "TWD", decimalScale: 2 },
   },
+  // `isInTheMoney` is a nullable boolean on the wire. The enum cell coerces the
+  // raw value with `Number`, so false lands on 0 and true on 1, and null stays
+  // null and draws as an empty cell.
   isInTheMoney: {
     field: "isInTheMoney",
     title: "Status",
     defaultWidth: 160,
     editable: false,
-    type: "status",
+    type: "dg:enum",
+    options: {
+      nullable: true,
+      choices: [
+        { value: 0, label: "Out of the money", color: "red" },
+        { value: 1, label: "In the money", color: "green" },
+      ],
+    },
   },
-  asOf: { field: "asOf", title: "As Of", defaultWidth: 120, editable: false, type: "date" },
+  asOf: {
+    field: "asOf",
+    title: "As Of",
+    defaultWidth: 120,
+    editable: false,
+    type: "dg:date",
+    options: { nullable: true },
+  },
 };
-
-const columnsAdapter = localStorageColumnsAdapter(`${GRID_NAME}:columns`);
 
 export const bondGridDescriptor: GridDescriptor<BondRow, never, string> = {
   name: GRID_NAME,
@@ -110,16 +134,10 @@ export const bondGridDescriptor: GridDescriptor<BondRow, never, string> = {
       "isInTheMoney",
       "asOf",
     ],
-    // All columns are read-only; without this the default ("editable only")
-    // would make nothing sortable.
-    sortable: () => true,
   },
-  api: {
-    ...createBondGridApi(queryClient),
-    loadColumns: columnsAdapter.loadColumns,
-    saveColumns: columnsAdapter.saveColumns,
-  },
-  cells: bondCells,
+  // The engine persists the user's column layout to Web Storage on its own,
+  // under `datagrid:bonds:columns`. There is no adapter to hand it.
+  api: createBondGridApi(),
 };
 
 export const bondGrid = createGridInstance(bondGridDescriptor);

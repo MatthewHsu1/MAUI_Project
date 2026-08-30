@@ -1,4 +1,4 @@
-using AppName.Application.Dtos;
+using AppName.Application.Dtos.Bonds;
 using AppName.Maui.Clients.Bonds;
 
 namespace AppName.Maui.Bridge;

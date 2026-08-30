@@ -3,11 +3,3 @@
 @import "tailwindcss";
 
 @source "./**/*.{ts,tsx}";
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-border: var(--border);
-  --color-input: var(--input);
-  --color-ring: var(--ring);
-}
