@@ -5,6 +5,7 @@ using AppName.Api.Endpoints.Bonds;
 using AppName.Api.OpenApi;
 using AppName.Application;
 using AppName.Infrastructure;
+using AppName.Infrastructure.Persistence.Context;
 using Scalar.AspNetCore;
 using SecretKeysConstants = AppName.Api.SecretKeysConstants;
 
@@ -34,6 +35,9 @@ builder.Services.AddApiCors(builder.Configuration);
 
 var app = builder.Build();
 
+// --- Database ------------------------------------------------------------
+await app.Services.MigrateDatabaseAsync();
+
 app.MapOpenApi();
 
 if (app.Environment.IsDevelopment())
@@ -44,6 +48,8 @@ if (app.Environment.IsDevelopment())
 app.UseCors(SecretKeysConstants.Cors.PolicyName);
 app.UseAuthentication();
 app.UseAuthorization();
+
+app.MapGet("/health", () => Results.Ok(new { status = "healthy" }));
 
 var api = app.MapGroup("/api");
 api.MapAuthEndpoints();
