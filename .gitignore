@@ -19,3 +19,4 @@ src/AppName.Maui/Resources/Raw/web/
 .DS_Store
 
 .playwright-cli
+.serena
