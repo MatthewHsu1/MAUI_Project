@@ -36,6 +36,84 @@ web-build:
 web-dev:
     cd src/web && npm run dev
 
+# ---- Dev servers -------------------------------------------------------------
+
+# PID and log files for `just dev`. Git-ignored; nothing else reads it.
+run_dir := ".just-dev"
+
+# Where the API listens. src/web/.env.development points VITE_API_BASE_URL at
+# this exact URL, and the API's Cors:Origins allows Vite's own :5173 back.
+# Passed explicitly because the API project has no launchSettings.json to
+# default from.
+api_url := "http://localhost:5000"
+
+# Start the API and Vite in the background (stop: `just dev-stop`, output: `just dev-logs`).
+dev: dev-stop
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    mkdir -p "{{run_dir}}"
+
+    # Each server is started under `setsid`, in its own process group, and
+    # records its OWN pid rather than the one the shell hands back.
+    #
+    # Both wrappers fork the thing that actually holds the port -- `dotnet run`
+    # execs the built binary, `npm run dev` spawns vite -- so killing the pid
+    # `$!` gives us would reap the wrapper and leave the server behind, still
+    # holding :5000 or :5173. Writing `$$` from inside the new session records
+    # the group leader instead, and `exec` keeps that same pid for the server.
+    # `dev-stop` then signals the whole group.
+    # ASPNETCORE_ENVIRONMENT is set by hand because the API project has no
+    # launchSettings.json to carry it, and `dotnet run` then defaults to
+    # Production. That default is not cosmetic: WebApplication.CreateBuilder
+    # loads user-secrets ONLY in Development, so a Production run cannot see
+    # ConnectionStrings:AppDb and dies in AddInfrastructure before it listens.
+    # appsettings.Development.json -- the dev JWT key, and the Cors:Origins
+    # entry for Vite's :5173 -- is skipped for the same reason.
+    setsid bash -c "echo \$\$ > '{{run_dir}}/api.pid'; ASPNETCORE_ENVIRONMENT=Development exec dotnet run --project src/AppName.Api --urls '{{api_url}}'" \
+        > "{{run_dir}}/api.log" 2>&1 &
+
+    setsid bash -c "echo \$\$ > '{{run_dir}}/web.pid'; exec npm --prefix src/web run dev" \
+        > "{{run_dir}}/web.log" 2>&1 &
+
+    echo "api  {{api_url}}       -> {{run_dir}}/api.log"
+    echo "web  http://localhost:5173 -> {{run_dir}}/web.log"
+    echo
+    echo "just dev-logs   follow both"
+    echo "just dev-stop   stop both"
+
+# Stop whatever `just dev` started. Safe to run when nothing is up.
+dev-stop:
+    #!/usr/bin/env bash
+    # No `-e`: a stale pid file whose process is already gone is the normal
+    # case, not a failure.
+    set -uo pipefail
+
+    for name in api web; do
+        pid_file="{{run_dir}}/${name}.pid"
+
+        [[ -f "$pid_file" ]] || continue
+
+        pid="$(cat "$pid_file")"
+
+        # A NEGATIVE pid signals the whole process group -- see the note in
+        # `dev` for why the group and not the single process.
+        if [[ -n "$pid" ]] && kill -TERM -- "-${pid}" 2>/dev/null; then
+            echo "stopped ${name}"
+        fi
+
+        rm -f "$pid_file"
+    done
+
+# Follow both dev-server logs. Ctrl+C stops following; the servers keep running.
+dev-logs:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    # -F rather than -f so a log that has not been created yet is waited for
+    # instead of aborting the whole tail.
+    tail -n 40 -F "{{run_dir}}/api.log" "{{run_dir}}/web.log"
+
 # ---- MAUI app ----------------------------------------------------------------
 
 # Build the MAUI head (builds the React bundle first via the BuildReactApp MSBuild target).

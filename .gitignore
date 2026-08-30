@@ -20,3 +20,5 @@ src/AppName.Maui/Resources/Raw/web/
 
 .playwright-cli
 .serena
+# `just dev` PID and log files.
+.just-dev/
