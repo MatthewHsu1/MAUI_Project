@@ -3,6 +3,7 @@ using AppName.Domain.Abstractions.Bonds;
 using AppName.Domain.Entities.Bonds;
 using AppName.Domain.Querying;
 using AppName.Domain.ValueObjects.Valuations;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace AppName.Application.Tests.UseCases.Bonds;
 
@@ -25,7 +26,7 @@ public class GetValuationsUseCaseTests
 
         public Fixture()
         {
-            RefreshState.Setup(r => r.TryClaimAttemptAsync(It.IsAny<DateOnly>(), It.IsAny<CancellationToken>()))
+            RefreshState.Setup(r => r.TryClaimAttemptAsync(It.IsAny<DateOnly>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync(true);
             Snapshots.Setup(s => s.QueryAsync(It.IsAny<ValuationQuery>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync(Array.Empty<BondValuationSnapshot>());
@@ -34,7 +35,7 @@ public class GetValuationsUseCaseTests
 
         public Fixture WithLostClaim()
         {
-            RefreshState.Setup(r => r.TryClaimAttemptAsync(It.IsAny<DateOnly>(), It.IsAny<CancellationToken>()))
+            RefreshState.Setup(r => r.TryClaimAttemptAsync(It.IsAny<DateOnly>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync(false);
             return this;
         }
@@ -54,7 +55,7 @@ public class GetValuationsUseCaseTests
         }
 
         public GetValuationsUseCase Build() =>
-            new(RefreshState.Object, Snapshots.Object, Refresh.Object, new FixedTimeProvider(FixedUtc));
+            new(RefreshState.Object, Snapshots.Object, Refresh.Object, new FixedTimeProvider(FixedUtc), NullLogger<GetValuationsUseCase>.Instance);
     }
 
     [Fact]
@@ -74,7 +75,7 @@ public class GetValuationsUseCaseTests
 
         await fx.Build().ExecuteAsync(DefaultQuery);
 
-        fx.RefreshState.Verify(r => r.TryClaimAttemptAsync(TwToday, It.IsAny<CancellationToken>()), Times.Once);
+        fx.RefreshState.Verify(r => r.TryClaimAttemptAsync(TwToday, It.IsAny<DateTime>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]

@@ -1,5 +1,6 @@
 using AppName.Application.Dtos.Bonds;
 using AppName.Domain.Abstractions.Bonds;
+using Microsoft.Extensions.Logging;
 using AppName.Domain.ValueObjects.Valuations;
 
 namespace AppName.Application.UseCases.Bonds;
@@ -13,7 +14,8 @@ public sealed class GetValuationsUseCase(
     IBondValuationRefreshStateRepository refreshStateRepo,
     IValuationSnapshotRepository snapshotRepo,
     IRefreshAllBondsUseCase refreshAllBonds,
-    TimeProvider timeProvider)
+    TimeProvider timeProvider,
+    ILogger<GetValuationsUseCase> logger)
 {
     /// <summary>
     /// Ensures freshness (best-effort) then returns the requested slice.
@@ -23,7 +25,7 @@ public sealed class GetValuationsUseCase(
     public async Task<IReadOnlyList<ConversionValuationDto>> ExecuteAsync(
         ValuationQuery query, CancellationToken ct = default)
     {
-        await DailyRefreshGate.EnsureFreshAsync(refreshStateRepo, refreshAllBonds, timeProvider, ct);
+        await DailyRefreshGate.EnsureFreshAsync(refreshStateRepo, refreshAllBonds, timeProvider, logger, ct);
 
         var snapshots = await snapshotRepo.QueryAsync(query, ct);
         return snapshots.Select(ValuationSnapshotMapper.ToDto).ToList();

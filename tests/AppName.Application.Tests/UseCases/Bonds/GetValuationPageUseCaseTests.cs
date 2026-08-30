@@ -3,6 +3,7 @@ using AppName.Domain.Abstractions.Bonds;
 using AppName.Domain.Entities.Bonds;
 using AppName.Domain.Querying;
 using AppName.Domain.ValueObjects.Valuations;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace AppName.Application.Tests.UseCases.Bonds;
 
@@ -27,7 +28,7 @@ public class GetValuationPageUseCaseTests
 
         public Fixture()
         {
-            RefreshState.Setup(r => r.TryClaimAttemptAsync(It.IsAny<DateOnly>(), It.IsAny<CancellationToken>()))
+            RefreshState.Setup(r => r.TryClaimAttemptAsync(It.IsAny<DateOnly>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync(true);
             Snapshots.Setup(s => s.QueryAsync(It.IsAny<ValuationQuery>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync(Array.Empty<BondValuationSnapshot>());
@@ -38,7 +39,7 @@ public class GetValuationPageUseCaseTests
 
         public Fixture WithLostClaim()
         {
-            RefreshState.Setup(r => r.TryClaimAttemptAsync(It.IsAny<DateOnly>(), It.IsAny<CancellationToken>()))
+            RefreshState.Setup(r => r.TryClaimAttemptAsync(It.IsAny<DateOnly>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync(false);
             return this;
         }
@@ -65,7 +66,7 @@ public class GetValuationPageUseCaseTests
         }
 
         public GetValuationPageUseCase Build() =>
-            new(RefreshState.Object, Snapshots.Object, Refresh.Object, new FixedTimeProvider(FixedUtc));
+            new(RefreshState.Object, Snapshots.Object, Refresh.Object, new FixedTimeProvider(FixedUtc), NullLogger<GetValuationPageUseCase>.Instance);
     }
 
     [Fact]
@@ -85,7 +86,7 @@ public class GetValuationPageUseCaseTests
 
         await fx.Build().ExecuteAsync(DefaultQuery);
 
-        fx.RefreshState.Verify(r => r.TryClaimAttemptAsync(TwToday, It.IsAny<CancellationToken>()), Times.Once);
+        fx.RefreshState.Verify(r => r.TryClaimAttemptAsync(TwToday, It.IsAny<DateTime>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]

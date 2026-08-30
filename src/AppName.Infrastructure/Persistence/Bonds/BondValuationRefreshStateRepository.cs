@@ -30,18 +30,19 @@ public sealed class BondValuationRefreshStateRepository(IDbContextFactory<AppDbC
 
         if (existing is null)
         {
-            db.BondValuationRefreshStates.Add(new BondValuationRefreshState(BondValuationRefreshState.SingletonId, state.LastAsOf, state.LastAttemptDate));
+            db.BondValuationRefreshStates.Add(new BondValuationRefreshState(
+                BondValuationRefreshState.SingletonId, state.LastAsOf, state.LastAttemptDate, state.RetryNotBefore));
         }
         else
         {
-            existing.Update(state.LastAsOf, state.LastAttemptDate);
+            existing.Update(state.LastAsOf, state.LastAttemptDate, state.RetryNotBefore);
         }
 
         await db.SaveChangesAsync(ct);
     }
 
     /// <inheritdoc/>
-    public async Task<bool> TryClaimAttemptAsync(DateOnly today, CancellationToken ct = default)
+    public async Task<bool> TryClaimAttemptAsync(DateOnly today, DateTime now, CancellationToken ct = default)
     {
         await using var db = factory.CreateDbContext();
 
@@ -54,10 +55,31 @@ public sealed class BondValuationRefreshStateRepository(IDbContextFactory<AppDbC
                      // The null arm is REQUIRED. SQL evaluates NULL != @today as
                      // NULL, not true, so without it the very first claim of all
                      // time matches no row and the refresh never starts.
-                     && (r.LastAttemptDate == null || r.LastAttemptDate != today))
-            .ExecuteUpdateAsync(s => s.SetProperty(r => r.LastAttemptDate, today), ct);
+                     && (r.LastAttemptDate == null || r.LastAttemptDate != today
+                         // A failed attempt gave the day back and named when it
+                         // may be tried again. Clearing RetryNotBefore in the
+                         // same statement is what stops two callers taking the
+                         // retry, exactly as the day claim stops two taking the
+                         // first attempt.
+                         || (r.RetryNotBefore != null && r.RetryNotBefore <= now)))
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(r => r.LastAttemptDate, today)
+                .SetProperty(r => r.RetryNotBefore, (DateTime?)null), ct);
 
         // Zero rows means another caller already claimed today.
         return claimed > 0;
+    }
+
+    /// <inheritdoc/>
+    public async Task ReleaseClaimAsync(DateTime retryNotBefore, CancellationToken ct = default)
+    {
+        await using var db = factory.CreateDbContext();
+
+        // LastAttemptDate is deliberately left stamped. It still records when
+        // the attempt happened, and RetryNotBefore alone is what reopens the
+        // claim -- see the second arm of the predicate above.
+        await db.BondValuationRefreshStates
+            .Where(r => r.Id == BondValuationRefreshState.SingletonId)
+            .ExecuteUpdateAsync(s => s.SetProperty(r => r.RetryNotBefore, (DateTime?)retryNotBefore), ct);
     }
 }

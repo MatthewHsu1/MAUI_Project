@@ -40,6 +40,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             Id = BondValuationRefreshState.SingletonId,
             LastAsOf = (DateOnly?)null,
             LastAttemptDate = (DateOnly?)null,
+            RetryNotBefore = (DateTime?)null,
         });
     }
 }
