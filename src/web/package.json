@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:web": "tsc -b && vite build --mode web",
     "codegen": "openapi-typescript http://localhost:5000/openapi/v1.json -o src/api/schema.gen.ts",
     "lint": "oxlint",
     "format": "prettier --write .",

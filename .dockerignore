@@ -1,0 +1,20 @@
+# Build output and dependencies — restored/compiled inside the image instead.
+**/bin/
+**/obj/
+**/node_modules/
+src/web/dist/
+src/AppName.Maui/Resources/Raw/web/
+
+# Not part of the API image.
+src/AppName.Maui/
+tests/
+docs/
+docker/
+.github/
+.git/
+.just-dev/
+.playwright-cli/
+.serena/
+.claude/
+.devcontainer/
+.superpowers/

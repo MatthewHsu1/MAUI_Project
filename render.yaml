@@ -1,0 +1,71 @@
+# Render Blueprint: the .NET API and the React static site.
+#
+# Apply it from the Render dashboard (Blueprints -> New Blueprint Instance).
+# Values marked `sync: false` are NOT stored here — Render prompts for them on
+# first apply and keeps them in the service's environment. Nothing secret
+# belongs in this file.
+
+services:
+  # ---- API ------------------------------------------------------------------
+  #
+  # Docker, because Render has no native .NET runtime. The Dockerfile builds from
+  # the repository root so it can see global.json and the Directory.*.props.
+  - type: web
+    name: appname-api
+    runtime: docker
+    plan: free
+    region: oregon
+    dockerfilePath: ./docker/api.Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    envVars:
+      # The API applies its own EF Core migrations at start-up. The free plan
+      # runs a single instance, which is what makes that safe.
+      - key: Database__MigrateOnStartup
+        value: "true"
+
+      # YugabyteDB Cloud connection string. The CA cert ships inside the image,
+      # so a RELATIVE path is what you want here, for example:
+      #   Host=...;Port=5433;Database=...;Username=...;Password=...;
+      #   SSL Mode=VerifyFull;Root Certificate=certs/yugabyte-ca.crt
+      # Allow Render's outbound IPs in the cluster's IP allow list, or the
+      # connection times out with no useful error.
+      - key: ConnectionStrings__AppDb
+        sync: false
+
+      # Production JWT settings. The values in appsettings.Development.json are a
+      # local stub and must not be reused here.
+      - key: Jwt__Issuer
+        sync: false
+      - key: Jwt__Audience
+        sync: false
+      - key: Jwt__Key
+        sync: false
+
+      # The browser origin of the static site below, scheme included and with no
+      # trailing slash, for example https://appname-web.onrender.com. Set it
+      # after the first apply, once Render has assigned the site its URL.
+      - key: Cors__Origins__0
+        sync: false
+
+  # ---- Web ------------------------------------------------------------------
+  #
+  # A static site: Vite builds the bundle, Render serves the files.
+  - type: web
+    name: appname-web
+    runtime: static
+    rootDir: src/web
+    buildCommand: npm ci && npm run build:web
+    staticPublishPath: dist
+    envVars:
+      # Baked into the bundle AT BUILD TIME, not read in the browser. Changing it
+      # needs a rebuild, not just a restart. Use the API's URL, for example
+      # https://appname-api.onrender.com.
+      - key: VITE_API_BASE_URL
+        sync: false
+    routes:
+      # Client-side routing: every unknown path serves the app shell, otherwise a
+      # refresh on /bonds/1234 returns 404.
+      - type: rewrite
+        source: /*
+        destination: /index.html
