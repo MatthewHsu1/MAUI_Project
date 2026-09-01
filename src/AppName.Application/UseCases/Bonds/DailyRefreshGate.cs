@@ -1,12 +1,13 @@
 using AppName.Application.Time;
 using AppName.Domain.Abstractions.Bonds;
+using AppName.Domain.ValueObjects.Bonds;
 using Microsoft.Extensions.Logging;
 
 namespace AppName.Application.UseCases.Bonds;
 
 /// <summary>
-/// The once-per-Taiwan-trading-day refresh gate every valuation read passes
-/// through.
+/// The refresh gate every valuation read passes through, which brings the
+/// cache up to the newest published Taiwan trading data and then leaves it alone.
 /// </summary>
 internal static class DailyRefreshGate
 {
@@ -16,12 +17,17 @@ internal static class DailyRefreshGate
     internal static readonly TimeSpan RetryBackoff = TimeSpan.FromMinutes(5);
 
     /// <summary>
-    /// Refreshes the valuation cache when this caller wins today's claim, and
+    /// How long an attempt that brought back no newer data blocks the next one.
+    /// </summary>
+    internal static readonly TimeSpan StalePollInterval = TimeSpan.FromMinutes(15);
+
+    /// <summary>
+    /// Refreshes the valuation cache when this caller wins the claim, and
     /// returns without refreshing when it loses.
     /// </summary>
     /// <param name="refreshStateRepo">Holds the singleton refresh marker the claim updates.</param>
     /// <param name="refreshAllBonds">Runs the whole-market refresh.</param>
-    /// <param name="timeProvider">Resolves today's Taiwan trading date.</param>
+    /// <param name="timeProvider">Resolves the Taiwan trading dates the claim is judged against.</param>
     /// <param name="logger">Records a failed attempt, which is otherwise invisible to the caller.</param>
     /// <param name="ct">Cancels the claim and the refresh.</param>
     internal static async Task EnsureFreshAsync(
@@ -36,10 +42,20 @@ internal static class DailyRefreshGate
         var now = timeProvider.GetUtcNow().UtcDateTime;
         var today = TaiwanClock.Today(timeProvider);
 
-        // A losing claim falls through and serves the cache. It does not wait for
-        // the winner, because freshness is best-effort and waiting would couple
-        // every window request to one whole-market fetch.
-        if (!await refreshStateRepo.TryClaimAttemptAsync(today, now, ct))
+        var claim = new BondValuationRefreshClaim
+        {
+            ExpectedDataDate = TaiwanClock.ExpectedDataDate(timeProvider),
+            TaiwanToday = today,
+            IsClosePublishGraceOpen = TaiwanClock.IsClosePublishGraceOpen(timeProvider),
+            Now = now,
+            NextAttemptNotBefore = now + StalePollInterval,
+        };
+
+        // A losing claim falls through and serves the cache -- either the cache
+        // already carries the newest published data, or another caller is fetching
+        // it. It does not wait for that caller, because freshness is best-effort
+        // and waiting would couple every window request to one whole-market fetch.
+        if (!await refreshStateRepo.TryClaimAttemptAsync(claim, ct))
         {
             return;
         }
@@ -51,10 +67,10 @@ internal static class DailyRefreshGate
         catch (OperationCanceledException)
         {
             // The caller walked away mid-refresh. Nothing failed, so this is not
-            // logged as an error, but the day must still be handed back: an
-            // attempt that never finished has not refreshed anything. The retry
-            // is immediate because there is no upstream fault to back off from.
-            await ReleaseQuietlyAsync(refreshStateRepo, now, logger);
+            // logged as an error, but the lease must still be dropped: an attempt
+            // that never finished has not refreshed anything. The next attempt is
+            // immediate because there is no upstream fault to back off from.
+            await SetNextAttemptQuietlyAsync(refreshStateRepo, now, logger);
             throw;
         }
         catch (Exception ex)
@@ -65,32 +81,37 @@ internal static class DailyRefreshGate
             // identical from the outside.
             logger.LogError(
                 ex,
-                "Daily bond valuation refresh failed for Taiwan date {TaiwanDate}. Serving the cached valuations. The day has been released; the next read after {RetryNotBefore:O} will try again.",
+                "Bond valuation refresh failed for Taiwan date {TaiwanDate}. Serving the cached valuations. The next read after {NextAttemptNotBefore:O} will try again.",
                 today,
                 now + RetryBackoff);
 
-            await ReleaseQuietlyAsync(refreshStateRepo, now + RetryBackoff, logger);
+            await SetNextAttemptQuietlyAsync(refreshStateRepo, now + RetryBackoff, logger);
+            return;
         }
+
+        // A successful pull rewrites the whole marker row. Restoring the interval
+        // is what paces the retries when the pull succeeded but came back with
+        // nothing newer than the cache already held.
+        await SetNextAttemptQuietlyAsync(refreshStateRepo, now + StalePollInterval, logger);
     }
 
     /// <summary>
-    /// Releases the claim, swallowing any failure to do so.
+    /// Records when the next attempt may run, swallowing any failure to do so.
     /// </summary>
-    /// <remarks>
-    private static async Task ReleaseQuietlyAsync(
+    private static async Task SetNextAttemptQuietlyAsync(
         IBondValuationRefreshStateRepository refreshStateRepo,
-        DateTime retryNotBefore,
+        DateTime notBefore,
         ILogger logger)
     {
         try
         {
-            await refreshStateRepo.ReleaseClaimAsync(retryNotBefore, CancellationToken.None);
+            await refreshStateRepo.SetNextAttemptAsync(notBefore, CancellationToken.None);
         }
         catch (Exception ex)
         {
             logger.LogError(
                 ex,
-                "Could not release the bond valuation refresh claim. No further refresh will be attempted until tomorrow.");
+                "Could not schedule the next bond valuation refresh attempt. No further refresh will be attempted until the claim's lease expires.");
         }
     }
 }

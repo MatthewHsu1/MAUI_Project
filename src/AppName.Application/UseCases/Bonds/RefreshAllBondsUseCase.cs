@@ -50,8 +50,20 @@ public sealed class RefreshAllBondsUseCase(
 
         await snapshotRepo.UpsertManyAsync(snapshots, ct);
 
-        DateOnly? maxAsOf = snapshots.Count > 0 ? snapshots.Max(s => s.AsOf) : null;
+        var previous = await refreshStateRepo.GetAsync(ct);
+
+        // A pull that produced no usable quotes must not drag LastAsOf backwards.
+        // It is the key the refresh gate reads, so a null there would reopen the
+        // gate on every read. The pending next-attempt time is carried over for
+        // the same reason: this write replaces the whole row, and dropping the
+        // lease would let a second caller in behind an in-flight refresh.
+        DateOnly? maxAsOf = snapshots.Count > 0 ? snapshots.Max(s => s.AsOf) : previous.LastAsOf;
+
         await refreshStateRepo.SetAsync(
-            new BondValuationRefreshState(BondValuationRefreshState.SingletonId, maxAsOf, TaiwanClock.Today(timeProvider)), ct);
+            new BondValuationRefreshState(
+                BondValuationRefreshState.SingletonId,
+                maxAsOf,
+                TaiwanClock.Today(timeProvider),
+                previous.NextAttemptNotBefore), ct);
     }
 }

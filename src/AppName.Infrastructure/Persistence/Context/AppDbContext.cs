@@ -29,8 +29,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         bondValuationRefreshState.HasKey(r => r.Id);
         bondValuationRefreshState.Property(r => r.Id).ValueGeneratedNever();
 
-        // Seed the singleton marker row. TryClaimAttemptAsync claims the daily
-        // refresh with a conditional UPDATE, and an UPDATE needs a row to hit.
+        // Seed the singleton marker row. TryClaimAttemptAsync claims a refresh
+        // attempt with a conditional UPDATE, and an UPDATE needs a row to hit.
         // Without the seed the row appears only on the first SetAsync, so every
         // caller would lose the claim until then and no refresh would ever run.
         // An anonymous object is used because the entity exposes Id as get-only
@@ -40,7 +40,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             Id = BondValuationRefreshState.SingletonId,
             LastAsOf = (DateOnly?)null,
             LastAttemptDate = (DateOnly?)null,
-            RetryNotBefore = (DateTime?)null,
+            NextAttemptNotBefore = (DateTime?)null,
         });
     }
 }
