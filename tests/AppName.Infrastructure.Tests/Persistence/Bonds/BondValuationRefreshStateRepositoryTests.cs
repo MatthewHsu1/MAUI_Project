@@ -1,4 +1,5 @@
 using AppName.Domain.Entities.Bonds;
+using AppName.Domain.ValueObjects.Bonds;
 using AppName.Infrastructure.Persistence.Bonds;
 using AppName.Infrastructure.Persistence.Context;
 using Microsoft.Data.Sqlite;
@@ -12,7 +13,13 @@ namespace AppName.Infrastructure.Tests.Persistence.Bonds;
 // the database, not the test, picks the winner. These tests prove the predicate.
 public class BondValuationRefreshStateRepositoryTests
 {
+    private static readonly DateOnly Today = new(2026, 7, 1);
+    private static readonly DateOnly Yesterday = new(2026, 6, 30);
+    private static readonly DateOnly Tomorrow = new(2026, 7, 2);
+
     private static readonly DateTime Now = new(2026, 7, 1, 4, 0, 0, DateTimeKind.Utc);
+    private static readonly DateTime NextAttempt = Now.AddMinutes(15);
+    private static readonly DateTime RetryAt = Now.AddMinutes(5);
 
     private sealed class Fixture : IDisposable
     {
@@ -22,6 +29,7 @@ public class BondValuationRefreshStateRepositoryTests
         }
 
         private readonly SqliteConnection _connection;
+        private readonly DbContextOptions<AppDbContext> _options;
 
         public BondValuationRefreshStateRepository Repo { get; }
 
@@ -30,18 +38,47 @@ public class BondValuationRefreshStateRepositoryTests
             _connection = new SqliteConnection("DataSource=:memory:");
             _connection.Open();
 
-            var options = new DbContextOptionsBuilder<AppDbContext>().UseSqlite(_connection).Options;
+            _options = new DbContextOptionsBuilder<AppDbContext>().UseSqlite(_connection).Options;
             // EnsureCreated applies HasData, so the seeded singleton marker row
             // exists before any test runs. TryClaimAttemptAsync needs that row,
             // because a conditional UPDATE cannot hit a table with no rows.
-            using (var ctx = new AppDbContext(options))
+            using (var ctx = new AppDbContext(_options))
                 ctx.Database.EnsureCreated();
 
-            Repo = new BondValuationRefreshStateRepository(new SingleContextFactory(options));
+            Repo = new BondValuationRefreshStateRepository(new SingleContextFactory(_options));
+        }
+
+        // Writes the marker straight through a context rather than through the
+        // repository, so a test that arranges state does not also exercise the
+        // member it is about to assert on.
+        public Fixture WithMarker(DateOnly? lastAsOf, DateOnly? lastAttemptDate, DateTime? nextAttemptNotBefore = null)
+        {
+            using var ctx = new AppDbContext(_options);
+
+            var row = ctx.BondValuationRefreshStates.Single(r => r.Id == BondValuationRefreshState.SingletonId);
+            row.Update(lastAsOf, lastAttemptDate, nextAttemptNotBefore);
+            ctx.SaveChanges();
+
+            return this;
         }
 
         public void Dispose() => _connection.Dispose();
     }
+
+    private static BondValuationRefreshClaim Claim(
+        DateOnly expectedDataDate,
+        DateTime now,
+        DateTime nextAttemptNotBefore,
+        DateOnly? taiwanToday = null,
+        bool closePublishGraceOpen = true) =>
+        new()
+        {
+            ExpectedDataDate = expectedDataDate,
+            TaiwanToday = taiwanToday ?? expectedDataDate,
+            IsClosePublishGraceOpen = closePublishGraceOpen,
+            Now = now,
+            NextAttemptNotBefore = nextAttemptNotBefore,
+        };
 
     [Fact]
     public async Task GetAsync_ReturnsDefault_WhenNeverSet()
@@ -60,23 +97,25 @@ public class BondValuationRefreshStateRepositoryTests
     {
         using var fx = new Fixture();
 
-        await fx.Repo.SetAsync(new BondValuationRefreshState(BondValuationRefreshState.SingletonId, new DateOnly(2026, 7, 2), new DateOnly(2026, 7, 2)));
-        var state = await fx.Repo.GetAsync();
+        await fx.Repo.SetAsync(new BondValuationRefreshState(
+            BondValuationRefreshState.SingletonId, Tomorrow, Tomorrow));
 
-        Assert.Equal(new DateOnly(2026, 7, 2), state.LastAttemptDate);
-        Assert.Equal(new DateOnly(2026, 7, 2), state.LastAsOf);
+        var state = await fx.Repo.GetAsync();
+        Assert.Equal(Tomorrow, state.LastAttemptDate);
+        Assert.Equal(Tomorrow, state.LastAsOf);
     }
 
     [Fact]
     public async Task SetAsync_Twice_UpdatesSingleRowInPlace()
     {
-        using var fx = new Fixture();
+        using var fx = new Fixture()
+            .WithMarker(Today, Today);
 
-        await fx.Repo.SetAsync(new BondValuationRefreshState(BondValuationRefreshState.SingletonId, new DateOnly(2026, 7, 1), new DateOnly(2026, 7, 1)));
-        await fx.Repo.SetAsync(new BondValuationRefreshState(BondValuationRefreshState.SingletonId, new DateOnly(2026, 7, 2), new DateOnly(2026, 7, 2)));
+        await fx.Repo.SetAsync(new BondValuationRefreshState(
+            BondValuationRefreshState.SingletonId, Tomorrow, Tomorrow));
+
         var state = await fx.Repo.GetAsync();
-
-        Assert.Equal(new DateOnly(2026, 7, 2), state.LastAttemptDate);
+        Assert.Equal(Tomorrow, state.LastAttemptDate);
     }
 
     [Fact]
@@ -84,30 +123,113 @@ public class BondValuationRefreshStateRepositoryTests
     {
         using var fx = new Fixture();
 
-        // The seeded row has a null LastAttemptDate. This fails if the claim
-        // predicate drops its "== null" arm, because SQL evaluates
-        // NULL != @today as NULL and the UPDATE then matches no row.
-        Assert.True(await fx.Repo.TryClaimAttemptAsync(new DateOnly(2026, 7, 1), Now));
+        var won = await fx.Repo.TryClaimAttemptAsync(Claim(Today, Now, NextAttempt));
+
+        // The seeded row has a null LastAsOf. This fails if the claim predicate
+        // drops its "== null" arm, because SQL evaluates NULL < @date as NULL
+        // and the UPDATE then matches no row.
+        Assert.True(won);
     }
 
     [Fact]
-    public async Task TryClaimAttemptAsync_ReturnsFalse_OnSecondClaimForSameDay()
+    public async Task TryClaimAttemptAsync_ReturnsFalse_WhenCachedDataCarriesTheExpectedDate()
+    {
+        using var fx = new Fixture()
+            .WithMarker(Today, Today);
+
+        var won = await fx.Repo.TryClaimAttemptAsync(Claim(Today, Now, NextAttempt));
+
+        Assert.False(won);
+    }
+
+    [Fact]
+    public async Task TryClaimAttemptAsync_ReturnsTrue_WhenCachedDataIsOlderThanTheExpectedDate()
+    {
+        // The pull ran before the exchange published today's close, so it brought
+        // back yesterday's prices. Gating on the attempt would serve those until
+        // tomorrow; gating on the data tries again.
+        using var fx = new Fixture()
+            .WithMarker(Yesterday, Today);
+
+        var won = await fx.Repo.TryClaimAttemptAsync(Claim(Today, Now, NextAttempt));
+
+        Assert.True(won);
+    }
+
+    [Fact]
+    public async Task TryClaimAttemptAsync_ReturnsFalse_WhenTheDayHasAlreadyFailedToPublishAClose()
+    {
+        // A Taiwan holiday looks exactly like this: the day was attempted, the data
+        // never reached the expected date, and the grace period has run out. Without
+        // the attempt-date arm the whole market would be pulled again every interval
+        // until midnight.
+        using var fx = new Fixture()
+            .WithMarker(Yesterday, Today);
+
+        var won = await fx.Repo.TryClaimAttemptAsync(
+            Claim(Today, Now, NextAttempt, closePublishGraceOpen: false));
+
+        Assert.False(won);
+    }
+
+    [Fact]
+    public async Task TryClaimAttemptAsync_ReturnsTrue_WhenTheGraceIsClosedButTheDayWasNeverAttempted()
+    {
+        // Opening the app late in the evening must still pick up today's close.
+        using var fx = new Fixture()
+            .WithMarker(Yesterday, Yesterday);
+
+        var won = await fx.Repo.TryClaimAttemptAsync(
+            Claim(Today, Now, NextAttempt, closePublishGraceOpen: false));
+
+        Assert.True(won);
+    }
+
+    [Fact]
+    public async Task TryClaimAttemptAsync_ReturnsFalse_WhenNextAttemptTimeHasNotElapsed()
+    {
+        using var fx = new Fixture()
+            .WithMarker(null, null, NextAttempt);
+
+        var won = await fx.Repo.TryClaimAttemptAsync(Claim(Today, Now.AddMinutes(1), NextAttempt));
+
+        // The stamp the winner left is the mutex: LastAsOf cannot move until that
+        // refresh finishes, so nothing else here would keep a second caller out.
+        Assert.False(won);
+    }
+
+    [Fact]
+    public async Task TryClaimAttemptAsync_ReturnsTrue_WhenNextAttemptTimeHasElapsed()
+    {
+        using var fx = new Fixture()
+            .WithMarker(null, null, NextAttempt);
+
+        var won = await fx.Repo.TryClaimAttemptAsync(Claim(Today, NextAttempt, NextAttempt.AddMinutes(15)));
+
+        Assert.True(won);
+    }
+
+    [Fact]
+    public async Task TryClaimAttemptAsync_StampsNextAttemptTime_WhenClaimWins()
     {
         using var fx = new Fixture();
 
-        await fx.Repo.TryClaimAttemptAsync(new DateOnly(2026, 7, 1), Now);
+        await fx.Repo.TryClaimAttemptAsync(Claim(Today, Now, NextAttempt));
 
-        Assert.False(await fx.Repo.TryClaimAttemptAsync(new DateOnly(2026, 7, 1), Now));
+        var state = await fx.Repo.GetAsync();
+        Assert.Equal(NextAttempt, state.NextAttemptNotBefore);
     }
 
     [Fact]
     public async Task TryClaimAttemptAsync_ReturnsTrue_OnNextDay()
     {
-        using var fx = new Fixture();
+        using var fx = new Fixture()
+            .WithMarker(Today, Today, NextAttempt);
 
-        await fx.Repo.TryClaimAttemptAsync(new DateOnly(2026, 7, 1), Now);
+        var won = await fx.Repo.TryClaimAttemptAsync(
+            Claim(Tomorrow, NextAttempt.AddDays(1), NextAttempt.AddDays(1)));
 
-        Assert.True(await fx.Repo.TryClaimAttemptAsync(new DateOnly(2026, 7, 2), Now));
+        Assert.True(won);
     }
 
     [Fact]
@@ -115,91 +237,73 @@ public class BondValuationRefreshStateRepositoryTests
     {
         using var fx = new Fixture();
 
-        await fx.Repo.TryClaimAttemptAsync(new DateOnly(2026, 7, 1), Now);
-        var state = await fx.Repo.GetAsync();
+        await fx.Repo.TryClaimAttemptAsync(Claim(Yesterday, Now, NextAttempt, taiwanToday: Today));
 
-        Assert.Equal(new DateOnly(2026, 7, 1), state.LastAttemptDate);
+        var state = await fx.Repo.GetAsync();
+        Assert.Equal(Today, state.LastAttemptDate);
     }
 
     [Fact]
     public async Task TryClaimAttemptAsync_LeavesLastAsOfUnchanged_WhenClaimWins()
     {
-        using var fx = new Fixture();
+        using var fx = new Fixture()
+            .WithMarker(Yesterday, null);
 
-        await fx.Repo.SetAsync(new BondValuationRefreshState(BondValuationRefreshState.SingletonId, new DateOnly(2026, 6, 30), null));
-
-        await fx.Repo.TryClaimAttemptAsync(new DateOnly(2026, 7, 1), Now);
-        var state = await fx.Repo.GetAsync();
+        await fx.Repo.TryClaimAttemptAsync(Claim(Today, Now, NextAttempt));
 
         // The claim marks only the attempt. LastAsOf still records the last
         // successful pull, so a losing refresh must not appear as a success.
-        Assert.Equal(new DateOnly(2026, 6, 30), state.LastAsOf);
-    }
-
-    [Fact]
-    public async Task ReleaseClaimAsync_RecordsRetryNotBefore()
-    {
-        using var fx = new Fixture();
-        var retryAt = Now.AddMinutes(5);
-
-        await fx.Repo.TryClaimAttemptAsync(new DateOnly(2026, 7, 1), Now);
-        await fx.Repo.ReleaseClaimAsync(retryAt);
         var state = await fx.Repo.GetAsync();
-
-        Assert.Equal(retryAt, state.RetryNotBefore);
+        Assert.Equal(Yesterday, state.LastAsOf);
     }
 
     [Fact]
-    public async Task ReleaseClaimAsync_LeavesLastAttemptDateStamped()
+    public async Task SetNextAttemptAsync_AfterAClaim_RecordsTheNewTime()
     {
-        using var fx = new Fixture();
+        using var fx = new Fixture()
+            .WithMarker(null, Today, NextAttempt);
 
-        await fx.Repo.TryClaimAttemptAsync(new DateOnly(2026, 7, 1), Now);
-        await fx.Repo.ReleaseClaimAsync(Now.AddMinutes(5));
+        await fx.Repo.SetNextAttemptAsync(RetryAt);
+
         var state = await fx.Repo.GetAsync();
-
-        // RetryNotBefore alone reopens the claim. The attempt date still records
-        // that an attempt was made today.
-        Assert.Equal(new DateOnly(2026, 7, 1), state.LastAttemptDate);
+        Assert.Equal(RetryAt, state.NextAttemptNotBefore);
     }
 
     [Fact]
-    public async Task TryClaimAttemptAsync_ReturnsFalse_WhenReleasedButBackoffHasNotElapsed()
+    public async Task SetNextAttemptAsync_AfterAClaim_LeavesLastAttemptDateStamped()
     {
-        using var fx = new Fixture();
+        using var fx = new Fixture()
+            .WithMarker(null, Today, NextAttempt);
 
-        await fx.Repo.TryClaimAttemptAsync(new DateOnly(2026, 7, 1), Now);
-        await fx.Repo.ReleaseClaimAsync(Now.AddMinutes(5));
+        await fx.Repo.SetNextAttemptAsync(RetryAt);
+
+        var state = await fx.Repo.GetAsync();
+        Assert.Equal(Today, state.LastAttemptDate);
+    }
+
+    [Fact]
+    public async Task TryClaimAttemptAsync_ReturnsTrue_WhenBackoffFromAFailedAttemptHasElapsed()
+    {
+        using var fx = new Fixture()
+            .WithMarker(null, Today, RetryAt);
+
+        var won = await fx.Repo.TryClaimAttemptAsync(Claim(Today, Now.AddMinutes(6), NextAttempt));
+
+        // A shorter backoff replaces the claim's worst-case lease, so a failed
+        // attempt is retried on its own schedule rather than the lease's.
+        Assert.True(won);
+    }
+
+    [Fact]
+    public async Task TryClaimAttemptAsync_ReturnsFalse_WhenBackoffFromAFailedAttemptHasNotElapsed()
+    {
+        using var fx = new Fixture()
+            .WithMarker(null, Today, RetryAt);
+
+        var won = await fx.Repo.TryClaimAttemptAsync(Claim(Today, Now.AddMinutes(1), NextAttempt));
 
         // This is the whole point of the backoff: an outage must not make every
         // read pay the upstream timeout again.
-        Assert.False(await fx.Repo.TryClaimAttemptAsync(new DateOnly(2026, 7, 1), Now.AddMinutes(1)));
-    }
-
-    [Fact]
-    public async Task TryClaimAttemptAsync_ReturnsTrue_WhenReleasedAndBackoffHasElapsed()
-    {
-        using var fx = new Fixture();
-
-        await fx.Repo.TryClaimAttemptAsync(new DateOnly(2026, 7, 1), Now);
-        await fx.Repo.ReleaseClaimAsync(Now.AddMinutes(5));
-
-        // Same day, already claimed once -- the retry is what reopens it.
-        Assert.True(await fx.Repo.TryClaimAttemptAsync(new DateOnly(2026, 7, 1), Now.AddMinutes(6)));
-    }
-
-    [Fact]
-    public async Task TryClaimAttemptAsync_ClearsRetryNotBefore_WhenRetryIsWon()
-    {
-        using var fx = new Fixture();
-
-        await fx.Repo.TryClaimAttemptAsync(new DateOnly(2026, 7, 1), Now);
-        await fx.Repo.ReleaseClaimAsync(Now.AddMinutes(5));
-        await fx.Repo.TryClaimAttemptAsync(new DateOnly(2026, 7, 1), Now.AddMinutes(6));
-
-        // Clearing it in the same statement is what stops a second caller also
-        // taking the retry.
-        Assert.Null((await fx.Repo.GetAsync()).RetryNotBefore);
-        Assert.False(await fx.Repo.TryClaimAttemptAsync(new DateOnly(2026, 7, 1), Now.AddMinutes(6)));
+        Assert.False(won);
     }
 }

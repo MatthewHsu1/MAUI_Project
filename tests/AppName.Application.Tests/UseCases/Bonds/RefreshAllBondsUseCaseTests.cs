@@ -12,6 +12,7 @@ public class RefreshAllBondsUseCaseTests
     private static readonly DateTimeOffset FixedUtc = new(2026, 7, 2, 4, 0, 0, TimeSpan.Zero);
     private static readonly DateOnly TwToday = new(2026, 7, 2);
     private static readonly DateOnly QuoteDate = new(2026, 6, 30);
+    private static readonly DateTime PendingNextAttempt = new(2026, 7, 2, 4, 15, 0, DateTimeKind.Utc);
 
     private sealed class Fixture
     {
@@ -34,9 +35,19 @@ public class RefreshAllBondsUseCaseTests
             Snapshots.Setup(s => s.UpsertManyAsync(It.IsAny<IEnumerable<BondValuationSnapshot>>(), It.IsAny<CancellationToken>()))
                 .Callback<IEnumerable<BondValuationSnapshot>, CancellationToken>((s, _) => Saved.AddRange(s))
                 .Returns(Task.CompletedTask);
+            RefreshState.Setup(r => r.GetAsync(It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new BondValuationRefreshState(BondValuationRefreshState.SingletonId, null, null));
             RefreshState.Setup(r => r.SetAsync(It.IsAny<BondValuationRefreshState>(), It.IsAny<CancellationToken>()))
                 .Callback<BondValuationRefreshState, CancellationToken>((s, _) => SavedState = s)
                 .Returns(Task.CompletedTask);
+        }
+
+        public Fixture WithStoredMarker(DateOnly? lastAsOf, DateTime? nextAttemptNotBefore)
+        {
+            RefreshState.Setup(r => r.GetAsync(It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new BondValuationRefreshState(
+                    BondValuationRefreshState.SingletonId, lastAsOf, null, nextAttemptNotBefore));
+            return this;
         }
 
         public Fixture WithBonds(params ConvertibleBond[] bonds)
@@ -133,5 +144,32 @@ public class RefreshAllBondsUseCaseTests
         Assert.NotNull(fx.SavedState);
         Assert.Equal(TwToday, fx.SavedState!.LastAttemptDate);
         Assert.Equal(QuoteDate, fx.SavedState.LastAsOf);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_KeepsStoredLastAsOf_WhenNoSnapshotsWereProduced()
+    {
+        var fx = new Fixture().WithStoredMarker(QuoteDate, null);
+
+        await fx.Build().ExecuteAsync();
+
+        // LastAsOf is the key the refresh gate compares against. Writing null on a
+        // degraded pull would reopen the gate on every later read.
+        Assert.Equal(QuoteDate, fx.SavedState!.LastAsOf);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_KeepsStoredNextAttemptTime_WhenStampingTheMarker()
+    {
+        var fx = new Fixture()
+            .WithStoredMarker(QuoteDate, PendingNextAttempt)
+            .WithBonds(new ConvertibleBond("11011", "台泥一永", 100_000m, 50m, "1101"))
+            .WithStockQuotes(new StockQuote("1101", 60m, QuoteDate));
+
+        await fx.Build().ExecuteAsync();
+
+        // This write replaces the whole marker row. Dropping the pending time would
+        // open the gate to a second caller before this refresh has finished.
+        Assert.Equal(PendingNextAttempt, fx.SavedState!.NextAttemptNotBefore);
     }
 }

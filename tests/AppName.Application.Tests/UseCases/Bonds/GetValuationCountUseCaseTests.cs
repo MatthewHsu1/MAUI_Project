@@ -1,5 +1,6 @@
 using AppName.Application.UseCases.Bonds;
 using AppName.Domain.Abstractions.Bonds;
+using AppName.Domain.ValueObjects.Bonds;
 using AppName.Domain.ValueObjects.Valuations;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -7,8 +8,17 @@ namespace AppName.Application.Tests.UseCases.Bonds;
 
 public class GetValuationCountUseCaseTests
 {
-    private static readonly DateTimeOffset FixedUtc = new(2026, 7, 2, 4, 0, 0, TimeSpan.Zero); // TW 2026-07-02
+    private static readonly DateTimeOffset FixedUtc = new(2026, 7, 2, 4, 0, 0, TimeSpan.Zero); // TW 2026-07-02 12:00
     private static readonly DateOnly TwToday = new(2026, 7, 2);
+
+    // Noon in Taipei is before the exchange publishes, so the newest data that can
+    // exist is the previous trading day's.
+    private static readonly DateOnly TwExpectedDataDate = new(2026, 7, 1);
+
+    // DailyRefreshGate's own constants are internal to the Application project, so
+    // they are restated here rather than referenced.
+    private static readonly TimeSpan RetryBackoff = TimeSpan.FromMinutes(5);
+    private static readonly TimeSpan StalePollInterval = TimeSpan.FromMinutes(15);
 
     private sealed class Fixture
     {
@@ -18,7 +28,7 @@ public class GetValuationCountUseCaseTests
 
         public Fixture()
         {
-            RefreshState.Setup(r => r.TryClaimAttemptAsync(It.IsAny<DateOnly>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            RefreshState.Setup(r => r.TryClaimAttemptAsync(It.IsAny<BondValuationRefreshClaim>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync(true);
             Snapshots.Setup(s => s.CountAsync(It.IsAny<ValuationFilter>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync(0);
@@ -27,7 +37,7 @@ public class GetValuationCountUseCaseTests
 
         public Fixture WithLostClaim()
         {
-            RefreshState.Setup(r => r.TryClaimAttemptAsync(It.IsAny<DateOnly>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            RefreshState.Setup(r => r.TryClaimAttemptAsync(It.IsAny<BondValuationRefreshClaim>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync(false);
             return this;
         }
@@ -53,9 +63,9 @@ public class GetValuationCountUseCaseTests
             return this;
         }
 
-        public Fixture WithFailingRelease()
+        public Fixture WithFailingNextAttemptWrite()
         {
-            RefreshState.Setup(r => r.ReleaseClaimAsync(It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            RefreshState.Setup(r => r.SetNextAttemptAsync(It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
                 .ThrowsAsync(new InvalidOperationException("database down"));
             return this;
         }
@@ -81,7 +91,10 @@ public class GetValuationCountUseCaseTests
 
         await fx.Build().ExecuteAsync(ValuationFilter.None);
 
-        fx.RefreshState.Verify(r => r.TryClaimAttemptAsync(TwToday, It.IsAny<DateTime>(), It.IsAny<CancellationToken>()), Times.Once);
+        fx.RefreshState.Verify(
+            r => r.TryClaimAttemptAsync(
+                It.Is<BondValuationRefreshClaim>(c => c.TaiwanToday == TwToday), It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 
     [Fact]
@@ -124,60 +137,80 @@ public class GetValuationCountUseCaseTests
         Assert.Equal(412, count);   // no throw; stale cache counted
     }
 
-    // The four tests below cover DailyRefreshGate's release path. They go through
-    // this use case rather than the gate directly, because the gate is internal
-    // and reached through the use cases by design — see its class remarks.
+    // The five tests below cover how DailyRefreshGate paces the next attempt. They
+    // go through this use case rather than the gate directly, because the gate is
+    // internal and reached through the use cases by design.
 
     [Fact]
-    public async Task ExecuteAsync_ReleasesClaimAfterBackoff_WhenRefreshThrows()
+    public async Task ExecuteAsync_SchedulesNextAttemptAfterBackoff_WhenRefreshThrows()
     {
         var fx = new Fixture().WithFailingRefresh();
 
         await fx.Build().ExecuteAsync(ValuationFilter.None);
 
-        // Five minutes is DailyRefreshGate.RetryBackoff, spelled out because the
-        // constant is internal to the Application project. Without the release,
-        // one upstream failure would consume the whole trading day.
+        // The backoff replaces the claim's longer lease, so an upstream blip is
+        // retried sooner than a market that simply has nothing newer to give.
         fx.RefreshState.Verify(
-            r => r.ReleaseClaimAsync(FixedUtc.UtcDateTime.AddMinutes(5), It.IsAny<CancellationToken>()),
+            r => r.SetNextAttemptAsync(FixedUtc.UtcDateTime + RetryBackoff, It.IsAny<CancellationToken>()),
             Times.Once);
     }
 
     [Fact]
-    public async Task ExecuteAsync_ReleasesClaimImmediately_WhenRefreshIsCancelled()
+    public async Task ExecuteAsync_SchedulesNextAttemptImmediately_WhenRefreshIsCancelled()
     {
         var fx = new Fixture().WithCancelledRefresh();
 
-        // Cancellation still propagates; only the claim is given back.
+        // Cancellation still propagates; only the next-attempt time is moved up.
         await Assert.ThrowsAsync<OperationCanceledException>(
             () => fx.Build().ExecuteAsync(ValuationFilter.None));
 
-        // No backoff: a caller walking away is not an upstream fault, so the next
-        // reader should try at once.
+        // No backoff: a caller walking away is not an upstream fault, and nothing
+        // was refreshed, so the next reader should try at once.
         fx.RefreshState.Verify(
-            r => r.ReleaseClaimAsync(FixedUtc.UtcDateTime, It.IsAny<CancellationToken>()),
+            r => r.SetNextAttemptAsync(FixedUtc.UtcDateTime, It.IsAny<CancellationToken>()),
             Times.Once);
     }
 
     [Fact]
-    public async Task ExecuteAsync_KeepsClaim_WhenRefreshSucceeds()
+    public async Task ExecuteAsync_LeasesTheClaim_ForThePollInterval()
     {
         var fx = new Fixture();
 
         await fx.Build().ExecuteAsync(ValuationFilter.None);
 
+        // The lease shuts the gate behind the winner. Nothing else can: the data
+        // date the claim tests against cannot move until this refresh finishes.
         fx.RefreshState.Verify(
-            r => r.ReleaseClaimAsync(It.IsAny<DateTime>(), It.IsAny<CancellationToken>()),
-            Times.Never);
+            r => r.TryClaimAttemptAsync(
+                It.Is<BondValuationRefreshClaim>(c =>
+                    c.ExpectedDataDate == TwExpectedDataDate
+                    && c.Now == FixedUtc.UtcDateTime
+                    && c.NextAttemptNotBefore == FixedUtc.UtcDateTime + StalePollInterval),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 
     [Fact]
-    public async Task ExecuteAsync_ReturnsCache_WhenReleasingTheClaimAlsoThrows()
+    public async Task ExecuteAsync_SchedulesNextAttemptAfterPollInterval_WhenRefreshSucceeds()
     {
-        var fx = new Fixture().WithFailingRefresh().WithFailingRelease().WithCount(412);
+        var fx = new Fixture();
 
-        // The release runs on the failure path of a best-effort refresh, so it
-        // must not become the thing that fails the caller.
+        await fx.Build().ExecuteAsync(ValuationFilter.None);
+
+        // A successful pull rewrites the marker row, so without this the next read
+        // would refresh again at once whenever the pull came back stale.
+        fx.RefreshState.Verify(
+            r => r.SetNextAttemptAsync(FixedUtc.UtcDateTime + StalePollInterval, It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_ReturnsCache_WhenSchedulingTheNextAttemptAlsoThrows()
+    {
+        var fx = new Fixture().WithFailingRefresh().WithFailingNextAttemptWrite().WithCount(412);
+
+        // This write runs on the failure path of a best-effort refresh, so it must
+        // not become the thing that fails the caller.
         Assert.Equal(412, await fx.Build().ExecuteAsync(ValuationFilter.None));
     }
 }

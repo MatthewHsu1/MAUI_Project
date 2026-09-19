@@ -1,4 +1,5 @@
 using AppName.Domain.Entities.Bonds;
+using AppName.Domain.ValueObjects.Bonds;
 
 namespace AppName.Domain.Abstractions.Bonds;
 
@@ -18,42 +19,22 @@ public interface IBondValuationRefreshStateRepository
     Task SetAsync(BondValuationRefreshState state, CancellationToken ct = default);
 
     /// <summary>
-    /// Claims today's refresh attempt for exactly one caller.
+    /// Claims the next refresh attempt for exactly one caller.
     /// </summary>
-    /// <param name="today">The Taiwan calendar date of the attempt.</param>
-    /// <param name="now">The UTC instant the claim is made, compared against a pending retry.</param>
+    /// <param name="claim">Everything the claim predicate compares the marker against.</param>
     /// <param name="ct">Cancels the claim.</param>
     /// <returns>
     /// True when this caller won the claim and must run the refresh; false when
-    /// another caller already claimed <paramref name="today"/> and this caller
-    /// must serve the cached data.
+    /// the cached data is already current, when the day has been shown to be a
+    /// non-trading day, or when another caller's attempt still holds the marker.
     /// </returns>
-    /// <remarks>
-    /// <para>
-    /// A read-then-write gate lets concurrent requests all observe the stale
-    /// marker and all start a whole-market refresh. This claim is one
-    /// conditional statement, so only the first caller of the day wins.
-    /// </para>
-    /// <para>
-    /// A caller also wins when the day is already claimed but a previous
-    /// attempt released it and its
-    /// <see cref="BondValuationRefreshState.RetryNotBefore"/> has passed. A
-    /// won claim clears that marker, so the retry is handed to exactly one
-    /// caller too.
-    /// </para>
-    /// </remarks>
-    Task<bool> TryClaimAttemptAsync(DateOnly today, DateTime now, CancellationToken ct = default);
+    Task<bool> TryClaimAttemptAsync(BondValuationRefreshClaim claim, CancellationToken ct = default);
 
     /// <summary>
-    /// Gives today's claim back after a failed attempt, so it can be retried
-    /// once <paramref name="retryNotBefore"/> has passed.
+    /// Records the earliest UTC instant at which the next refresh attempt may be
+    /// claimed.
     /// </summary>
-    /// <param name="retryNotBefore">The earliest UTC instant another caller may claim the day again.</param>
-    /// <param name="ct">Cancels the release.</param>
-    /// <remarks>
-    /// Without this, a single upstream failure consumes the whole trading day:
-    /// the claim is stamped before the refresh runs, so every later read sees
-    /// the day as done and serves an empty cache until tomorrow.
-    /// </remarks>
-    Task ReleaseClaimAsync(DateTime retryNotBefore, CancellationToken ct = default);
+    /// <param name="notBefore">The earliest UTC instant another caller may claim an attempt.</param>
+    /// <param name="ct">Cancels the write.</param>
+    Task SetNextAttemptAsync(DateTime notBefore, CancellationToken ct = default);
 }

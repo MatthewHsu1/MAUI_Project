@@ -3,17 +3,14 @@ using System.ComponentModel;
 namespace AppName.Domain.Entities.Bonds;
 
 /// <summary>
-/// Single-row marker recording when bond data was last pulled, used to gate
-/// refreshes to once per Taiwan trading day.
+/// Single-row marker recording how current the cached bond data is and when the
+/// next pull may run, used to gate whole-market refreshes.
 /// </summary>
-/// <remarks>
-/// Creates a refresh-state marker.
-/// </remarks>
 public sealed class BondValuationRefreshState(
     long id,
     DateOnly? lastAsOf,
     DateOnly? lastAttemptDate,
-    DateTime? retryNotBefore = null)
+    DateTime? nextAttemptNotBefore = null)
 {
     /// <summary>
     /// The fixed primary-key value of the single marker row.
@@ -39,30 +36,19 @@ public sealed class BondValuationRefreshState(
     public DateOnly? LastAttemptDate { get; private set; } = lastAttemptDate;
 
     /// <summary>
-    /// UTC instant before which a released claim must not be retried; null when
-    /// no retry is pending.
+    /// UTC instant before which the next pull attempt must not start; null when
+    /// no attempt is pending.
     /// </summary>
-    /// <remarks>
-    /// Set only when an attempt failed and gave its day back. It is what lets a
-    /// failed refresh be retried within the same day without every request
-    /// paying the upstream timeout: the day is claimable again, but not until
-    /// this instant has passed. A successful attempt clears it.
-    ///
-    /// Stored as a UTC <see cref="DateTime"/> rather than a
-    /// <see cref="DateTimeOffset"/> because the repository compares it in SQL,
-    /// and EF Core's SQLite provider -- which the repository tests run on --
-    /// cannot translate a DateTimeOffset comparison.
-    /// </remarks>
-    [DisplayName("Retry Not Before")]
-    public DateTime? RetryNotBefore { get; private set; } = retryNotBefore;
+    [DisplayName("Next Attempt Not Before")]
+    public DateTime? NextAttemptNotBefore { get; private set; } = nextAttemptNotBefore;
 
     /// <summary>
     /// Replaces the recorded markers after a pull attempt.
     /// </summary>
-    public void Update(DateOnly? lastAsOf, DateOnly? lastAttemptDate, DateTime? retryNotBefore = null)
+    public void Update(DateOnly? lastAsOf, DateOnly? lastAttemptDate, DateTime? nextAttemptNotBefore = null)
     {
         LastAsOf = lastAsOf;
         LastAttemptDate = lastAttemptDate;
-        RetryNotBefore = retryNotBefore;
+        NextAttemptNotBefore = nextAttemptNotBefore;
     }
 }
